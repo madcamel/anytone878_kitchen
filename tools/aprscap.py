@@ -98,6 +98,8 @@ def main():
         % (os.getpid(), PERIOD, C.RATE, C.N, C.PRE, C.POST))
     n = 0
     warned = None
+    arms = []                           # recent arm times: frequent re-arms = radio keeps retuning
+    last_freq = None
     rate = None
     t0 = tk0 = None
     last_report = time.monotonic()
@@ -114,8 +116,23 @@ def main():
                         log("not arming:", why)
                         warned = why
                 else:
+                    now = time.monotonic()
+                    arms = [t for t in arms if now - t < 10]
+                    if len(arms) >= 5:
+                        if warned != "retune":
+                            freqs = {struct.unpack("<I", r.peek(RX_FREQ, 4))[0] * 10 for _ in range(6)}
+                            log("radio retunes constantly (RX freq seen: %s): dual watch (PF function"
+                                " 'Sub Ch Hide' toggles it) or scan is on. Turn it off; waiting."
+                                % ", ".join("%.4f" % (f / 1e6) for f in sorted(freqs)))
+                            warned = "retune"
+                        time.sleep(2)
+                        continue
                     arm(r)
-                    log("armed" + (" (re-armed after retune/TX)" if warned is not None or n else ""))
+                    arms.append(now)
+                    f = struct.unpack("<I", r.peek(RX_FREQ, 4))[0] * 10
+                    if warned is None or f != last_freq or warned == "retune":
+                        log("armed on %.4f MHz" % (f / 1e6))
+                    last_freq = f
                     warned = ""
                 time.sleep(POLL)
                 continue

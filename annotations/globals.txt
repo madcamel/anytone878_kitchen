@@ -10,7 +10,7 @@
 # --- UI
 20000951 screen_id              u8
 200001B0 key_code               u8
-20007FF8 radio_settings         u8[256]  # +5 lang, +0x10..0x14 PF key funcs
+20007FF8 radio_settings         u8[256]  # +5 lang, +0x10..0x14 PF key funcs, +0x2D sub channel (dual watch) on
 200003DC cur_chan_rec           ptr    # channel record the menus edit
 200003E4 rf_chan_rec            ptr    # channel record the RF code uses (+8 &3 type, +0x39 freq corr)
 200003C0 rx_freq_10hz           u32
@@ -97,3 +97,4 @@
 2000240A audio_zc_periods       u8[32]
 # --- unsorted (tools/glob.py)
 200001B1 rf_tx_active           u8     # set at TX start (rf_cmd_apply_hi, rf_tx_aprs_afsk, PC quiesce); TIM6 ISR idles while set
+200001B4 key_fn_table           ptr[112] # PF/side-key functions, index = function number in the PF list (080a6758); 29 = Sub Ch (dual watch) toggle

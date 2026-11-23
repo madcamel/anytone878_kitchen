@@ -202,6 +202,7 @@
 08012494 task_p10_keys_ui
 0801250a ui_task_create
 08012542 screen_low_battery_show
+080138d0 key_sub_ch_toggle
 0801479c key_bt_toggle
 08014d7c key_aprs_info_open
 080166f6 freq_clamp_to_region
