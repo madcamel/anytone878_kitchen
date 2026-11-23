@@ -60,7 +60,10 @@ The expected firmware files and hashes are listed in `firmware/README.md` and `t
 tools/dec.py 40 0x08044cf2         # compact decompile
 tools/decr.py menu_open_addr...    # full decompile
 tools/fnprofile.py 3 0x0800d8a8    # what is this function about? (callees, strings, menus)
-tools/ramref.py 0x20000951         # who touches screen_id
+tools/trace.py aprs_rx_frame_byte  # callers, callees, globals touched, decompile (+ unnamed callees)
+tools/xrefs.py -w screen_id        # who writes a global (names or addresses)
+tools/glob.py 20000F4A aprs_rx_frame_ready u8 "comment"   # name a global, live + globals.txt
+tools/ramref.py 0x20000951         # who touches screen_id (-r N: also as a struct field)
 tools/callsweep.py 0x0807A6FC      # every AT1846S register write with its constant args
 echo "0807bb12 adc_dma_init" | tools/ren.py   # rename, then:
 tools/names_snapshot.py            # record names in annotations/names.txt
@@ -77,7 +80,8 @@ GUI is fine too: open `work/ghidra/d878.gpr` while the service is stopped.
   (function names), `functions.txt` (exact function boundaries), `globals.txt` (RAM variable
   names/types) and `comments.txt`. Your local Ghidra project is rebuilt from them, so everyone's
   project is identical. After renaming, run `tools/names_snapshot.py` (writes names + functions);
-  after adding globals, edit `globals.txt` and re-run `ghidra_scripts/SetupGlobals.java`; export
+  name globals with `tools/glob.py` (applies live and updates `globals.txt`; after a `git pull`,
+  `tools/glob.py --apply` brings your project up to date); export
   comments with `ghidra_scripts/ExportComments.java`.
 - **Skipping the bootstrap:** `scripts/project_pack.sh export` writes the analyzed project as a
   `.gzf`; the other person runs `scripts/project_pack.sh import file.gzf`. A `.gzf` contains the
@@ -89,6 +93,7 @@ GUI is fine too: open `work/ghidra/d878.gpr` while the service is stopped.
   replaces, prove its patch space is unreferenced (`patches/bandunlock_sigs.unsafe_refs`) and
   emulate its code under unicorn before writing. Add its pinned output hash to
   `scripts/selftest.sh`.
+- Commit newly mapped functions and globals (`annotations/`) regularly, not just at the end.
 - Run `scripts/selftest.sh` before pushing.
 
 ## Radio safety

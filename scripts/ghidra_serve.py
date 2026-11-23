@@ -11,6 +11,10 @@ Harness API (all tools use this), default http://127.0.0.1:8081/ :
   GET  /decompile?address=                 {name,address,code}  (uses the program's decompiler options)
   GET  /disassemble?address=               {items:[{address,bytes,text}]}
   POST /rename_function  address=&new_name=
+  POST /set_global  address=&name=[&type=]   label + data type (u8 u16 u32 ptr, T[N], - = label only);
+                                           other labels at that address are removed (globals.txt is truth)
+  POST /apply_globals [path=]              re-apply every line of annotations/globals.txt, live
+  xrefs_from items also carry to_symbol (primary symbol at the target, or null).
 Responses are {"success": true, "data": ...} or {"success": false, "error": "..."}.
 
 Optional: if the GhidraMCP extension (LaurieWired, 2.x, with HeadlessBackend) is installed in
@@ -76,6 +80,17 @@ os.environ["GHIDRA_INSTALL_DIR"] = str(GHIDRA)
 import pyghidra  # noqa: E402
 
 pyghidra.start(install_dir=GHIDRA, verbose=False)
+
+
+# Once the JVM runs, a crashed main thread leaves non-daemon Java threads (GhidraMCP backend)
+# alive and nothing to handle SIGTERM: ghidractl stop then hangs. Exit hard instead.
+def _die(t, v, tb):
+    log.critical("startup failed", exc_info=(t, v, tb))
+    logging.shutdown()
+    os._exit(1)
+
+
+sys.excepthook = _die
 import jpype  # noqa: E402
 
 mcp_jar = GHIDRA / "Ghidra/Extensions/GhidraMCP/lib/GhidraMCP.jar"
@@ -83,7 +98,9 @@ if mcp_jar.exists():
     jpype.addClassPath(str(mcp_jar))
 from ghidra.util.task import TaskMonitor  # noqa: E402
 from ghidra.app.decompiler import DecompInterface, DecompileOptions  # noqa: E402
-from ghidra.program.model.symbol import SourceType  # noqa: E402
+from ghidra.program.model.symbol import SourceType, SymbolType  # noqa: E402
+from ghidra.program.model.data import (ArrayDataType, ByteDataType, PointerDataType,  # noqa: E402
+                                       UnsignedIntegerDataType, UnsignedShortDataType)
 
 # The JVM installs its own SIGTERM/SIGINT handlers at startup, which exit the process without
 # running the save/close below. Re-install ours now that the JVM is up.
@@ -184,8 +201,10 @@ def ep_xrefs_from(q):
     for s in srcs:
         for r in refm.getReferencesFrom(s):
             ta = r.getToAddress()
+            sym = program.getSymbolTable().getPrimarySymbol(ta)
             out.append({"from_address": str(s), "to_address": str(ta), "type": str(r.getReferenceType()),
-                        "to_function": fdict(fm.getFunctionAt(ta))})
+                        "to_function": fdict(fm.getFunctionAt(ta)),
+                        "to_symbol": str(sym.getName()) if sym is not None else None})
             if len(out) >= lim:
                 return {"items": out}
     return {"items": out}
@@ -234,11 +253,88 @@ def ep_rename_function(q):
     return {"address": str(a), "old_name": old, "new_name": q["new_name"]}
 
 
+BASE_TYPES = {"u8": ByteDataType(), "u16": UnsignedShortDataType(),
+              "u32": UnsignedIntegerDataType(), "ptr": PointerDataType()}
+
+
+def parse_type(t):
+    """Same grammar as ghidra_scripts/SetupGlobals.java parseType."""
+    if t in ("", "-"):
+        return None
+    n = 0
+    if "[" in t:
+        n = int(t[t.index("[") + 1:t.index("]")])
+        t = t[:t.index("[")]
+    if t not in BASE_TYPES:
+        raise ValueError("type %r (u8 u16 u32 ptr, T[N], -)" % t)
+    base = BASE_TYPES[t]
+    return ArrayDataType(base, n, base.getLength()) if n > 0 else base
+
+
+def set_global(a, name, t):
+    """Caller holds a transaction. Make `name` the only label at a; apply type."""
+    st = program.getSymbolTable()
+    dt = parse_type(t)
+    keep = None
+    for s in list(st.getSymbols(a)):
+        if str(s.getName()) == name:
+            keep = s
+    if keep is None:
+        keep = st.createLabel(a, name, SourceType.USER_DEFINED)
+    keep.setPrimary()
+    removed = []
+    for s in list(st.getSymbols(a)):
+        if s != keep and s.getSymbolType() == SymbolType.LABEL:
+            removed.append(str(s.getName()))
+            s.delete()
+    if dt is not None:
+        listing.clearCodeUnits(a, a.add(dt.getLength() - 1), False)
+        listing.createData(a, dt)
+    return removed
+
+
+def write_tx(what, fn):
+    with wlock:
+        tx = program.startTransaction(what)
+        ok = False
+        try:
+            r = fn()
+            ok = True
+            return r
+        finally:
+            program.endTransaction(tx, ok)
+
+
+def ep_set_global(q):
+    a = addr(q["address"])
+    removed = write_tx("set_global %s" % a, lambda: set_global(a, q["name"], q.get("type", "-")))
+    return {"address": str(a), "name": q["name"], "type": q.get("type", "-"), "removed": removed}
+
+
+def ep_apply_globals(q):
+    path = Path(q.get("path") or ROOT / "annotations/globals.txt")
+    lines = []
+    for line in path.read_text().splitlines():
+        line = line.split("#")[0].strip()
+        if line:
+            f = line.split()
+            lines.append((addr(f[0]), f[1], f[2] if len(f) > 2 else "-"))
+
+    def run():
+        removed = []
+        for a, n, t in lines:
+            removed += ["%s:%s" % (a, x) for x in set_global(a, n, t)]
+        return removed
+    removed = write_tx("apply_globals", run)
+    return {"applied": len(lines), "removed": removed}
+
+
 GET = {"/program_info": ep_program_info, "/functions": ep_functions, "/function": ep_function,
        "/function_bodies": ep_function_bodies,
        "/xrefs_to": ep_xrefs_to, "/xrefs_from": ep_xrefs_from, "/decompile": ep_decompile,
        "/disassemble": ep_disassemble}
-POST = {"/rename_function": ep_rename_function}
+POST = {"/rename_function": ep_rename_function, "/set_global": ep_set_global,
+        "/apply_globals": ep_apply_globals}
 
 
 class Handler(BaseHTTPRequestHandler):

@@ -62,6 +62,9 @@ bad = [a for a in set(want) | set(have) if want.get(a) != have.get(a)]
 print(len(bad), "differ", sorted(bad)[:5]); sys.exit(1 if bad else 0)
 PYEOF
 	check "xrefs to screen_id" sh -c "'$PY' '$ROOT/tools/ramref.py' 0x20000951 | grep -q ui_key_handler"
+	check "xrefs.py by name: writers of aprs_rx_frame_ready" sh -c "'$PY' '$ROOT/tools/xrefs.py' -w aprs_rx_frame_ready | grep -q aprs_rx_frame_byte"
+	check "trace.py: callers + named globals" sh -c "'$PY' '$ROOT/tools/trace.py' -q aprs_rx_frame_byte | grep -q 'bt_rx_line_byte' && '$PY' '$ROOT/tools/trace.py' -q aprs_rx_frame_byte | grep -q 'aprs_tx_holdoff'"
+	check "apply_globals is live and matches globals.txt" sh -c "cd '$ROOT/tools' && '$PY' -c 'import gh; r=gh.apply_globals(); assert r[\"applied\"] > 80 and not r[\"removed\"], r'"
 	check "callsweep finds at1846_write_reg(0x30,...)" sh -c "'$PY' '$ROOT/tools/callsweep.py' 0x0807A6FC | grep -q 'r0=0x30'"
 else
 	echo "  skip  (service not running)"
