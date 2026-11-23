@@ -1,0 +1,45 @@
+#!/bin/sh
+# ghidractl start|stop|status|restart — headless Ghidra service for work/ghidra (harness API :8081,
+# optional GhidraMCP backend :8080). Manage the service only through this script (pidfile + process
+# group). Env: GHIDRA_INSTALL_DIR (Ghidra 12.x), D878_API_PORT (default 8081).
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+DIR=$ROOT/work/ghidra
+PID=$DIR/serve.pid
+LOG=$DIR/serve.log
+PY=$ROOT/.venv/bin/python
+SRV=$ROOT/scripts/ghidra_serve.py
+PORT=${D878_API_PORT:-8081}
+URL=http://127.0.0.1:$PORT/program_info
+
+running() { [ -f "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null; }
+
+case "$1" in
+start)
+	if running; then echo "already running (pid $(cat "$PID"))"; exit 0; fi
+	[ -x "$PY" ] || { echo "no .venv: run scripts/setup_venv.sh"; exit 1; }
+	[ -f "$DIR/d878.gpr" ] || { echo "no project in $DIR: run scripts/bootstrap.sh"; exit 1; }
+	if ls "$DIR"/d878.lock* >/dev/null 2>&1; then
+		echo "project is locked ($DIR/d878.lock*): close Ghidra / analyzeHeadless first"; exit 1
+	fi
+	setsid "$PY" "$SRV" --port "$PORT" >>"$LOG" 2>&1 < /dev/null &
+	echo $! > "$PID"
+	# Wait for the API to answer (JVM start + project open takes a while).
+	for i in $(seq 1 180); do
+		curl -s -m2 "$URL" >/dev/null 2>&1 && { echo "up (pid $(cat "$PID")) on :$PORT"; exit 0; }
+		running || { echo "died; see $LOG"; tail -20 "$LOG"; exit 1; }
+		sleep 1
+	done
+	echo "not answering after 180s; see $LOG"; exit 1 ;;
+stop)
+	if ! running; then echo "not running"; rm -f "$PID"; exit 0; fi
+	P=$(cat "$PID")
+	kill -TERM -- "-$P" 2>/dev/null || kill -TERM "$P"
+	for i in $(seq 1 60); do kill -0 "$P" 2>/dev/null || break; sleep 1; done
+	if kill -0 "$P" 2>/dev/null; then echo "still running after 60s (pid $P)"; exit 1; fi
+	rm -f "$PID"; echo "stopped" ;;
+status)
+	if running; then echo "running (pid $(cat "$PID"))"; curl -s -m2 "$URL" | head -c 300; echo
+	else echo "not running"; fi ;;
+restart) "$0" stop && "$0" start ;;
+*) echo "usage: $0 start|stop|status|restart"; exit 2 ;;
+esac

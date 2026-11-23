@@ -1,0 +1,131 @@
+# AnyTone AT-D878UV / D878UVII firmware RE — overview for agents
+
+Harness for reverse engineering and modifying the AnyTone AT-D878UV (and UVII) V4.00 firmware: a scripted Ghidra project, patch builders with emulation tests, and a USB tool that flashes, dumps and live-debugs the radio. Humans: start with `README.md`. This file is the dense map for an LLM opening the repo cold. Shared between collaborators; the vendor firmware is **never** committed (each person supplies their own; see `firmware/README.md`).
+
+## Rules for this file (agents: read before anything else, then keep it current)
+Cross-session cache shared by every collaborator's agent; lets you orient without re-exploring.
+- Session start: read this file before any file exploration; it's the authoritative starting point.
+- After changes or new findings: bring it back in line with how things work *now*: correct what's wrong, add non-obvious design decisions/traps, delete what became obsolete. Revise, don't append. Stale or bloated is worse than nothing.
+- Not a changelog: no dates, no "changed on X", no how-we-found-it stories, no test tallies, nothing phrased as what someone did. Keep the durable lesson, drop the incident.
+- Format: dense, for an LLM. Two jobs only: (1) cold bootstrap (what this is, where things live, how to run/verify); (2) non-obvious decisions, traps, relationships not derivable from the code. ~75–150 lines; when over, cut (stale war stories before live invariants).
+- vs README: README is for humans (setup, running, big gotchas); this file is the more detailed one (mechanism, addresses, protocol semantics). Resolve overlap by moving detail here.
+- Also: keep `annotations/` current (`tools/names_snapshot.py` after renames), put long human write-ups in `docs/`, run `scripts/selftest.sh` before calling work done.
+
+## Status
+- Mapped: hardware and buses, RTOS and libraries, all tasks/timers, RF command path and band limits, menu/UI engine, PC link, SCT3258 packet protocol. ~700 of ~3100 functions named (`annotations/names.txt`), ~60 RAM globals (`annotations/globals.txt`).
+- Built and verified on a real D878UV: band-unlock r1 (`patches/mkpatch_bandunlock.py`, UV + UVII; `docs/patch.md`) and the RAM debug channel (`patches/mkpatch_debug.py`): peek/poke/call/key-inject over USB during normal operation.
+- Ruled out: AM receive (AT1846S DSP is FM-only, no I/Q out; SCT3258 I/Q mode needs Sicomm's own RF chip).
+- **Next ideas:** software APRS (AFSK1200) RX on the MCU via the PC0 audio ADC (see Hardware); DMR data sniffer (copy `DIGC_DATA_FRAME` bursts to a RAM ring); RSSI band scope; flat discriminator audio (AT1846S reg 0x58 bypasses); emulator for UI patch testing.
+- Unknowns: RF cmd codes 4/5/6/8–0x0C/0x10/0x11/0x14–0x16; ops behind `sct_query`/`sct_command`; undocumented SCT fields 0x07/0x3B/0x40/0x44–0x4A/0x58–0x5E/0x70/0x73; I2C device 0x3A; ADC PC2; codeplug layout (partially known from reald's map, `docs/ref/anytone-flash-tools`); USB device library naming; real AT1846S lock range outside 134–174/200–260/400–520 MHz.
+- UVII: same codebase (81 % shared, 64 B longer, patch points shifted); ported by signature only, not imported into Ghidra.
+
+## Quick start
+1. `scripts/setup_venv.sh` (needs `GHIDRA_INSTALL_DIR` = Ghidra 12.1.x) → `.venv`.
+2. `scripts/get_firmware.py <vendor zip/dir>` → `firmware/` (sha256-checked against `tools/hcfg.py MODELS`).
+3. `scripts/bootstrap.sh` → `work/ghidra` (~4 min; or `scripts/project_pack.sh import x.gzf` from a collaborator). Two phases: (1) with analysis: import, CortexSetup, CreateCodePtrFunctions, ApplyFunctions + ApplyNames (analysis then completes table-only code); (2) `-noanalysis`: ApplyFunctions again (exactly `functions.txt`), ApplyNames, ApplyComments, SetupGlobals. Result is identical across machines; selftest verifies names and boundaries.
+4. `scripts/ghidractl start` → harness API on :8081 (`scripts/ghidra_serve.py` docstring lists endpoints); optional GhidraMCP backend on :8080 if that extension is installed. `ghidractl status|stop`.
+5. `scripts/selftest.sh` rebuilds every patch to its pinned sha256 (with emulation) and checks the tools.
+6. Ghidra scripts need the project unlocked: `ghidractl stop` → `$GHIDRA_INSTALL_DIR/support/analyzeHeadless work/ghidra d878 -process D878UV_V4.00.bin -noanalysis -scriptPath ghidra_scripts -postScript X.java [args]` → `ghidractl start`.
+7. After renaming: `tools/names_snapshot.py` (→ `annotations/names.txt` + `functions.txt`); new globals go in `annotations/globals.txt` then re-run `SetupGlobals.java`; comments via `ExportComments.java` → `annotations/comments.txt`. These files are the shared knowledge; commit them. A `.gzf` (`project_pack.sh`) contains the firmware: private hand-off only.
+
+## Layout
+- `annotations/` names.txt, functions.txt (exact bodies), globals.txt (RAM names/types), comments.txt. `ghidra_scripts/` Java scripts (bootstrap: CortexSetup, RemoveBogusVectorSyms, CreateCodePtrFunctions, ApplyFunctions, ApplyNames, ApplyComments, SetupGlobals; utilities: CreateFunctionsAt, RemoveFunctionsAt, FixupBodies, ExportComments, ExportGzf, DecompileAt).
+- `patches/` patch builders (+ `bandunlock_sigs.py` signature finder / reference sweep). `scripts/` setup, bootstrap, service, refs fetch, selftest. `tools/` Python CLIs; `hcfg.py` = paths/ports/firmware hashes (env overrides `D878_*`), `gh.py` = API client. `docs/` our write-ups; `docs/ref/` third-party datasheets (git-ignored, `scripts/fetch_refs.sh`).
+- Git-ignored, local only: `firmware/`, `work/` (Ghidra project, decompile cache), `out/` (builds, RAM image, radio dumps — dumps hold personal codeplug/contacts/serial), `vendor/`, `.venv/`.
+- tools: `dec.py N addr` compact decompile; `decr.py` full (leftover DAT_ → g_/io_/c_ addresses); `disas.py`; `fnprofile.py depth addr` (named callees, strings, menus: fastest way to guess a role); `ren.py` (stdin "addr name", two-pass); `ramref.py [-r N]` users of a global/struct field; `callsweep.py TARGET` every call with constant r0–r3; `sctfields.py` SCT packet map; `raminit.py` startup RAM image; `menumap.py` + `menuxref.py` menu descriptors → functions; `dump.py`/`showrange.py` grep-able decompile cache in `work/cache/`; `radio.py` radio I/O.
+
+## Traps
+- **Two decompilers:** GhidraMCP's backend never sets decompiler options, so it shows globals as `*PTR_x_08xxxxxx`; the harness `/decompile` uses the program's options and shows `x`. Prefer the harness API (and `tools/`) for everything; the MCP is a convenience.
+- FLASH block must stay **r-x** and literal-pool pointers **constant** (SetupGlobals) or the decompiler stops folding globals.
+- **The JVM overrides SIGTERM**: Python handlers are re-installed after JVM start in `ghidra_serve.py`, else stop skips the save.
+- **Missing functions:** analysis merges code reached only via pointers into the previous function (`CreateCodePtrFunctions.java`; pointer-looking words ≥0x080A0000 are data). Table-only code (menu vtables, SCT setters) must be created *before* analysis finishes, or its body stays fragmentary (this once left `menu_L7_show` at 46 bytes); the bootstrap's phase 1 does that. "Zero xrefs" ≠ dead (PendSV, task entries, `OS_TaskReturn`).
+- Strings are reached through pointer tables; string search mostly fails. Use menu tables, `fnprofile.py`, or literal-pool scans (VA = file offset + 0x08004000).
+- Don't name tools after stdlib modules (`dis.py`, `profile.py` broke capstone/cProfile imports).
+- Patch space must be proven dead *and* unreferenced: `bandunlock_sigs.unsafe_refs()` sweeps every halfword; dead functions often contain literal pools used by live neighbours (hit twice: 0x08007B78, 0x080065C4/0x0800671C). Halfword-sweep hits inside 32-bit instructions are false positives; allowlist with a byte check.
+- Keystone: no `#` on branch targets, no numeric local labels. Capstone prints r9 as `sb`.
+
+## Image
+Raw unencrypted Cortex-M4F image for GD32F303VG (1 MB flash, 96 KB SRAM), load base **0x08004000** (16 KB bootloader below, not in the update file). SP 0x20015720, Reset 0x08004C90. Code < 0x080A0000, then strings/menu/init tables. `.CDI` = name + load addr + length (no checksum); `.spi` = version tag; the app never checksums itself. The firmware rewrites internal flash 0x080F5800–0x080FFFFF (21 pages copied from SPI flash) — keep patches out of there. ICON `.CDD` = SPI-flash resources; `BHT_BOARD_*` = BT/APRS daughterboard (not fitted).
+
+## Hardware / buses (bit-banged GPIO unless noted)
+| Device | Link | Key functions |
+|---|---|---|
+| AT1846S RF (reg0 ID 0x1846, str "1846N") | 3-wire GPIOB PB3 SCLK, PB4 SDIO, PB5 SEN; 7-bit reg + 16-bit val, 0x80 = read | `at1846_write_reg` 0x0807A6FC (324 calls), `at1846_read_reg` |
+| SCT3258 DMR baseband + AMBE+2 | 8-bit HPI, no address lines: data PD8–15, PD2 HCSN, PD3 HWRN, PD4 HRDN; 16-bit words MSB first | `hpi_write_byte/buf`, `hpi_read_byte` 0x080823BA..; wrappers 0x0808711A/32/3E |
+| Audio codec (ref TLV320AIC3204) | on SCT3258 serial port 1; MCU writes it via codec-bypass packets (TYPE 0x40) or `I2C_OPERATION` 0x6A, never directly | `sct_codec_write*` |
+| GPS (module varies) | 0x40004400 = ST **USART2** (GD "USART1"), 9600, NMEA | `nmea_rx_char`, `gps_module_config` (MTK/CASIC/$CFG sets; no UBX) |
+| BK1080 broadcast FM | I2C PB6 SDA / PB7 SCL, addr 0x20, Si470x-style sequential writes from reg 02h | `fm_chip_init`, `fm_set_volume` |
+| Unknown I2C dev | 0x3A (7-bit 0x1D), reg-addressed; 0x0807C9EA polls reg 0x10 | `i2c_0x3a_read_reg` |
+| ST7735S LCD 128×160 RGB565 | 8080 parallel: PE7–14 data, PB10 D/CX, PB11 RST, PB12 CS, PB13 WR | `lcd_init_st7735`, `lcd_draw_text` (ASCII + GB2312) |
+| SPI flash (GigaDevice 0xC8) | CS PB8 | `spiflash_detect_id` |
+| USB FS CDC ("GD32 Virtual ComPort") | OUT EP3 64 B, IN EP 0x81 | `usb_cdc_rx_arm`, `usb_cdc_tx` |
+| PA power / RX tune | DAC ch1 = PA power control (`apc_dac_write`); TIM CC1 PWM = RX tracking-filter tune (`frontend_tune_pwm_write`) | |
+
+- **RX audio reaches the MCU:** ADC1 ch10 = PC0 carries pre-squelch RX audio (12-bit, DMA-circular with ch11 = PC1 battery and ch12 = PC2 unknown into 0x20001048..4D). TIM6_IRQHandler samples it for the software selective-call decoders (`tim6_audio_mode` 0x20000178: 1 tone sampling at 4× the tone frequency, 2 = 9.02 kHz 8-bit capture, 3 = 11.2 kHz zero-crossing periods). So AFSK1200 (APRS) decoding on the MCU is feasible with the existing sampling path; no daughterboard needed.
+## RF path, limits, calibration
+- RX: AT1846S FM-demods → codec → SCT3258 (4FSK, AMBE+2, CTCSS/DCS, filters). The SCT3258 never sees RF/IF, so **any AM capability must come from the AT1846S**.
+- V4.00 writes ~90 AT1846S registers. 25 aren't in the AT1846S guide or OpenRTX table; the RDA register table names most: 0x06–0x12 AGC gain table, 0x33 AGC number, 0x34 RX digital gain, 0x3F RSSI3 SQ threshold, 0x47 soft mute, 0x56/0x5A SQ detect time, 0x57 RSSI LPF bypass, 0x62 LNA option, 0x65 SQ th_sif. Reads: 0x00 ID, 0x0A, 0x1B RSSI, 0x30, 0x3A, 0x4E, 0x58/0x59, 0x79–0x7B, 0x7E.
+- `at1846_set_freq` 0x0805F504: arg in 10 Hz units; reg 0x29/0x2A = f_kHz×16 (AT1846S scaling; the RDA1846 guide says ×8, so its map is approximate). VHF/UHF split at 300 MHz; reg 05 picked per frequency (`rf_reg05_class_*`). No limits here.
+- Bands are classified elsewhere by the **BCD MHz byte**: <0x20 VHF, 0x20–0x30 "220", ≥0x31 UHF.
+- **RF command task (p7):** `rf_cmd_post(u8)` 0x08061772 (89 sites) → mailbox 0x20000BF4, cmd byte 0x20000BED.
+  - <0x0E → `rf_cmd_apply_lo` (RX): 1/4/5/6 = full re-enter RX on the current channel (regs 0x58/0x40 analog 0x8085/0x30, digital 0x80E5/0x31; set_freq; profile; band GPIOs); 2 = reload mode profile; 3 = fast retune (scan step?); 8, 9–0x0B post-call states, 0x0C special.
+  - ≥0x0E → `rf_cmd_apply_hi` (TX): 0x0E key-up (regs 0x58=0x8405, CTCSS `FUN_0805f250`/DCS `FUN_0805f2b8` from the channel record); 0x10/0x11 DMR variants; 0x14–0x16 → `FUN_08060c56(0..2)`.
+- Globals: RX freq 0x200003C0, TX freq 0x200003B4 (10 Hz units), current channel record ptr 0x200003E4 (+8 &3 analog/digital, +0x39 s8 freq correction, +9.. CTCSS/DCS). `at1846_load_mode_profile` 0x0805EC4C: analog vs DMR register profile (page 0x7F=1 AGC table). Reg 0x30: bits 13:12 25k/12.5k, |0x20 RX, |0x40 TX.
+- **Band limits = clamp to a per-region plan:** `freq_clamp_to_region` 0x080166F6 plus validators 0x08016D9A, 0x0801E9CE, 0x0801FF44, 0x08022D8E, 0x08025780, 0x08026668 all read the same tables.
+  - 18 regions; idx = byte 0x2000A33C+3. Each table is 18×u32: RX UHF 0x080A0C04/0x080A0C4C, VHF 0x080A0D24/0x080A0D6C, 220 0x080A0E44/0x080A0E8C; TX set at +0x90.
+  - Names (TX plan) via pointer array 0x080AAE28. Region 1 = "400-480 136-174"; region 14 = "136-220-520" (widest stock).
+  - Flag 0x20000D9B = factory test mode only (set by 0x0806A9FA): fixed 136–174/220–225 and no channel correction.
+- **Calibration lookups had no range guards** (14 sites, all clamped by the patch). Unsigned `(f−BASE)/STEP & 0xff` in `rf_squelch_cal_apply` (→ reg 0x49), `rf_frontend_tune_from_tables` (its "guard" picks the *top* entry below band), `tx_power_cal_lookup` (leaf fn!), `tx_power_apply`, and `dmr_freq_cal_send` segments 136/155/174(→220 band)/400/460. Any new band change must keep these clamped.
+- Patch space used so far (dead ST lib): band-unlock stubs 0x08007538–0x08007627 and 0x08007B8C–0x08007C9F (~32 B left); debug hook 0x080065C8–0x0800671B (94 B left). Other unreferenced ST functions (ADC/TIM/RTC/FLASH option-byte helpers, ~2 KB) remain; verify with `unsafe_refs` before use. **0x08007B78–0x08007B8B is a literal pool shared with the live `FLASH_ProgramHalfWord`** — never overwrite.
+
+## Software stack
+- Keil MDK/ARM Compiler: Reset → `SystemInit` → `__main` 0x08004131 → `main` 0x08004626 (all HW init, incl. `at1846_reset_wait_id` → `at1846_init_regs`, `fm_chip_init`).
+- **ST STM32F10x StdPeriph** (the GD32 runs as an STM32F103-XL clone) 0x08004CD0–0x08007B28, named by content. The link order isn't ST's file order, and some functions are vendor-modified. ISRs use STM32 names (`USART2_IRQHandler` = GPS).
+- **uC/OS-II** 0x08094768–0x080975A0, fully named: 200 Hz tick (5 ms), LOWEST_PRIO 63, 34 TCBs×0x54, no mem/mutex modules. TCB +0x2C Dly, +0x30 Stat, +0x32 Prio, +0x34/35/36 Y/BitX/BitY. Event +0 type (1 mbox, 2 Q, 3 sem, 5 flag, 100 tmr). `delay_ms` = ALIENTEK delay.c (OSTimeDly + busy-wait).
+- Keil C runtime 0x0809C680–0x0809F1xx: aeabi mem*, small printf, strtol, soft-double (`__aeabi_d*`; the FPU is single-precision only), libm. USB device lib ~0x08097688–0x0809C000 (unnamed).
+
+## Tasks
+`main` → `OSInit` → `AppTaskStart` 0x08004450 (prio 30; creates 8 binary sems, calls one `*_task_create` per task, then suspends itself) → `OSStart`. Mailbox tasks pend via `xxx_mbox_wait(0)` → 1-byte command → switch; those codes are the inter-task protocol. `0x2000130A` = `OSRunning`; drivers test it to choose `OSSemPend` vs. polling (pre-OS).
+| Prio | Entry | Wakes on | Role |
+|---|---|---|---|
+| 0 | `OSTmr_Task` | `OSTimeTickHook` every 2 ticks → 100 Hz | uC/OS timer task (highest prio!) |
+| 3 | `task_p3_usb_pc_link` | flag 0x10 (10 ms) | USB CDC CPS link; cmd 0x21 → `radio_quiesce_for_pc` |
+| 4 | `task_p4_bt_uart4` | sem from `UART4_IRQHandler` | BT/BHT daughterboard on UART4 9600 (PC10/11). Two protocols: binary `7E len cmd payload sum EF` (`bt_send_frame`; 0xCA = `bt_probe` ×100) and ASCII AT (`AT+BTON`; responses `OK/+CONN/+PTTKEY/+PTT=P/R/+VER…`, table 0x080B2E8C). Mode byte 0x20000951==0x14 = UART4↔USB passthrough (BT firmware update). Idle on no-BT units |
+| 5 | `task_p5_gps` | sem from USART2 ISR | NMEA parse (`gps_task_step`) |
+| 6 | `task_p6_sig_encoder` | polls; `OSTimeDly(1)` when idle | Analog signalling TX encoder, **not** an RF poll. `dtmf_live_step` (keypad DTMF while PTT) + `sig_seq_step` 16-state sequencer: PTT-ID DTMF strings (s1–4), 2/5-tone via `tone_set_freq_hz` (s5–13), AFSK burst (s14–16: TIM OC4+DMA PWM, all timers/USARTs paused, AT1846 reg 0x43) — likely APRS. DTMF row/col tables 0x080A0744/0x080A0704 (index 0–9,A–D,*,#). Busy-waits with IRQs off on ISR-decremented counters |
+| 7 | `task_p7_rf_cmd` | mbox | RF command executor (above) |
+| 8 | `task_p8_dmr_bb` | flag 0x08 (10 ms) | DMR baseband service: `dmr_bb_poll` → `sct_query(op…)` (status/rx), `dmr_rx_event_sm` (692-line DMR RX/call state machine), DMR-stack ticks 0x080849BC. Owns a 40-entry SCT3258 cmd queue (`dmr_bb_cmd_enqueue(op,a,b,c)`) |
+| 9 | `task_p9_tone` | mbox | beep/tone player |
+| 10 | `task_p10_keys_ui` | mbox | keys/menus; 0x18 `ptt_press`, 0x19 `ptt_release`, else `ui_key_handler` |
+| 11 | `task_p11_event_handler` | mbox | Reacts to event codes (popups via `ui_popup_show(id)`, call alerts, menu jumps). Producers call `evt_enqueue(code)` (10-deep byte queue); housekeeping's `evt_forward_to_p11` relays one at a time. Main producer `dmr_rx_event_sm` (codes 0x22–0x31, 0x4A–0x5D, 0x6A, 0x76); also GPS, `rf_cmd_apply_lo`. Was "DMR call" — it's the generic notifier |
+| 12 | `task_p12_display` | mbox | renderer (`ui_render`), woken by `app_event_post` 0x08042828 (271 calls) |
+| 14 | `task_p14_housekeeping` | 10 ms loop | `keypad_scan` + ~25 periodic jobs; relays p11 events |
+| 62/63 | `OS_TaskStat` / `OS_TaskIdle` | | uC/OS |
+
+OS timers (callbacks run in the prio-0 timer task, 100 Hz base): `tmr_10ms_soft_timers` 0x080203B6 (periodic; dozens of countdowns with /10 sub-tiers for 100 ms/1 s; writes BKP reg 4 after 30 s); `tmr_10ms_dmr_cb` 0x080687A0 (periodic; DMR countdowns, then `OSFlagPost(0x20000DE8, 0x18)` waking p3 and p8 — one shared flag group); `tmr_100ms_housekeep_cb` (one-shot).
+- `sct_query`/`sct_command` 0x0808B91A/0x0808C7D2 are op-code dispatchers into the vendor DMR stack (0x08084000–0x08094000), serialized by `sct_lock/unlock`; `sct_command` filters ops by state. `chan_is_digital` 0x0808287C = channel +8 &3 (1 digital; 2 mixed → current mode).
+
+## PC link & on-device access (`docs/pc_link.md`, `tools/radio.py`)
+USB CDC (`/dev/ttyACM0`, GD32 VID 28e9:018a). `task_p3_usb_pc_link` → `usb_pc_link_step` 0x0808112A → `pc_cmd_dispatch` 0x0807FC2E: cmd byte (+len +magic string) → internal code `g_20001097` (written only there) → switch; session mode `g_20001096` gates which commands work when idle. `R` + BE32 addr + len (1..255, ~150 KB/s) reads SPI NAND, **through the A/B-bank select per 128 KB block**, so a stock dump is the logical view (some raw blocks unreachable). `W` writes only ≥0x800000; `H` writes the factory block 0x2FA0000/0x2FC0000 (offset 0x120 = RF variant tag `"1846N"` → `g_20000DE0`). SPI NAND is 1 Gbit; addresses ≥0x8000000 are dropped. `END` reboots.
+- Debug patch (`docs/debug_channel.md`) `patches/mkpatch_debug.py` → `out/D878UV_V4.00_bandunlock_r1_dbg1/`: hooks the `bl pc_cmd_dispatch` at 0x08081186; `dbg_hook` 0x080065C8 (dead TIM_ICInit/PWMIConfig, between live literal pools) serves `D0` peek / `D1` poke / `D2` call (`'d'` magic, exact lengths) with no session, so normal operation continues. Everything else falls through. Host: `radio.py peek/poke/call`.
+- **Verified on hardware** (sha256 `257c2af6…`; boots normally, no factory init needed, settings kept). Live-confirmed: `radio.py key` (poke key → 0x20000901, call `FUN_08028F50`, which posts to the p10 mailbox and blocks until handled). Key codes 0x0D Menu, 0x0E Exit, 0x0F Up, 0x10 Down. **The first key after idle only wakes the backlight.** `radio.py screen` shows screen/node/depth/path. 0x20015720–0x20018000 (above initial SP) is free scratch RAM.
+- Region struct 0x2000A33C = first 8 bytes of the factory block (NAND 0x2FA0000: `00 00 00 00 01 01 09 00`), so the region byte is factory-block offset 3 (writable with `H`).
+- Firmware upload = bootloader (PTT+PF3, LED blinks): `UPDATE`, `02` identity check, 40-byte `01` blocks, `18`. `radio.py flash STEM.CDD --yes`. PTT+PF1 = app factory init (wipes settings); skip for same-version patches.
+
+## SCT3258 packet protocol (`docs/ref/sct3258_packet_interface.txt`)
+- Frame `84 A9 61 | len16 BE (fields only) | TYPE | {field_id, data}… | [2F xor-parity]`, padded to even length (16-bit HPI). TYPE: b7 AMBE bypass, b6 codec bypass, b5 read, b4 far end, [3:0] 0 control / 3 dPMR / 4 program / 5 DMR. Every packet gets an echo `{id, 00}` response within 40 ms (CHAN_D 80 ms, VOCODER_SEL 1–3 s).
+- Host API (0x08085000–0x08088000): `sct_msg_set_type`, `sct_msg_add_field(id, ptr)` into ctx 0x2000F8F8 (`+0` TYPE, `+4` n, `+6` ids[30], `+0x24` ptrs[30], `+0x9C` rx pkts) → `sct_msg_send` (length from table 0x080DE48A `{id, ctrl_len}`, matches spec) / `sct_msg_transact` (send + `sct_msg_wait_ack`) / `sct_msg_read_field`. RX: `sct_rx_byte` deframes into 0x2000F6A0 (300 B); `sct_rx_poll` splits; `sct_rx_field_dispatch` latches unsolicited fields into state 0x2000F631 and sets event bits in 0x200011C0 (b1 NEW_EVENT, b2 BER, b3/b6 DMR_CC, b4 ANALOG_SUBAUDIO = CTCSS/DCS detect, b5 LOWPWR, b7/b8 called/own ID, b9 CALL_MATCH, b10 DATA_FRAME, b12 SLOT_TYPE, b13 EMB, b14 FLC, b15 SLOT_FOUND, b16/b17 CHAN_D), which p8 consumes.
+- One setter per field, named `sct_set_<field>` / `sct_get_<field>` / `sct_codec_write*` (21 of those). Full site list: `tools/sctfields.py` (→ `out/sct_fields.txt`).
+- The CT3258 I/Q-input mode is only for Sicomm's SCT700/SCT3700 RF chips. With the AT1846S it gets FM-demodulated audio. The spec has no AM anywhere.
+
+## UI / menu system (full map: `docs/ui.md`)
+Hand-rolled vendor code, no library. It's the "KeyTab" pattern, reworked so that each table group is one **menu depth level**:
+- `ui_key_handler` = `switch(key 0x200001B0)` × if-chains on **screen ID 0x20000951** (0x0D = menu). `ui_render` switches on the same ID; dirty bits go through `app_event_post` → p12.
+- KeyTab 0x080AE958: 77×12 B `{self,up,down,ev3,ev4,enter,back,pad; fn}`, 11 groups of 7 = levels L1–L11 → `menu_L<n>_{show,up,down,ev3_nop,ev4_nop,enter,back}`. Current node 0x20000B20, redraw flag 0x20000AF4.
+- `menu_L<n>_show` is a nested `switch(path[0])…switch(path[n-2])` over the breadcrumb 0x20007DF0[] (pushed by `menu_path_push`). That's why L3–L6 are the largest functions. Each case loads `{items, count, type}` from a menu descriptor into the shared list widget (0x20000B24 / 0x20000AFC / 0x20000B00; cursor 0x20000AD4, window top 0x20000B04).
+- Menu descriptor: `char *en[n]; char *cn[n]; struct {char **items; u8 count; u8 type; u16 0} desc[2]`, read as `desc[settings.lang]` (settings 0x20007FF8, +5 = lang). 706 of them are listed in `work/cache/menus.txt` (`tools/menumap.py`). Code refs only the desc. Items are hidden by shrinking `count` or remapping visible → logical index; the logical index goes on the path.
+- Chan Set: `chanset_vis_to_field` → canonical field ID. Option lists come from RAM table 0x200006C8[field] (initialized `.data`; `tools/raminit.py` decompresses Keil's `__scatterload` LZ image). `chanset_build_options` preselects from the channel record (0x200003DC); `chanset_commit` 0x08018AB6 writes back + `rf_cmd_post(1)`. Band width = field 0x0A = record +8 [5:4] (2 bits, values 2–3 unused). **Region byte==1 or a digital channel forces Band width to Narrow-only in the menu.**
+- Code reached only via data tables (KeyTab leaves, L7–L11 heads) had no Ghidra functions: `ghidra_scripts/CreateFunctionsAt.java table <addr> <stride> <ptroff> <n>` or `CreateFunctionsAt.java a1 a2…`.
+
+## Answered: scan list behavior
+Scan list is a **per-channel** codeplug field; picking one in the radio menu writes only the current channel. For "scan list follows zone", set each channel's Scan List in CPS (Channel.CSV `Scan List`; zones in Zone.CSV). A channel in several zones holds one list.

@@ -1,0 +1,74 @@
+# RAM globals: addr name type   (type: u8 u16 u32 ptr  or  T[N]  or  -  for label only)
+# Applied by SetupGlobals.java. Sources: ui.md, pc_link.md, OVERVIEW.md.
+# --- OS / tasks
+2000130A OSRunning              u8
+20000DE8 os_flags_usb_dmr       ptr    # OS_FLAG_GRP*: 0x10 wakes p3, 0x08 wakes p8 (posted 0x18 every 10 ms)
+20000944 key_mbox               ptr    # OS_EVENT* p10 mailbox
+2000093C key_done_sem           ptr    # posted by p10 after each key
+20000901 key_post_code          u8     # keypad_scan/radio.py key writes code here, then FUN_08028F50
+20000988 disp_mbox              ptr    # OS_EVENT* p12 mailbox
+# --- UI
+20000951 screen_id              u8
+200001B0 key_code               u8
+20007FF8 radio_settings         u8[256]  # +5 lang, +0x10..0x14 PF key funcs
+200003DC cur_chan_rec           ptr    # channel record the menus edit
+200003E4 rf_chan_rec            ptr    # channel record the RF code uses (+8 &3 type, +0x39 freq corr)
+200003C0 rx_freq_10hz           u32
+200003B4 tx_freq_10hz           u32
+2000A33C region_info            u8[8]  # copy of factory block head; +3 = region index
+2000095C disp_pending_bits      u32    # app_event_post ORs here
+20000958 disp_dirty_bits        u32
+2000094C ui_fg_color            u16
+2000094E ui_bg_color            u16
+20000918 popup_desc             ptr
+20000B20 menu_node              u8     # KeyTab index
+20000B78 menu_fn                ptr
+20000AF4 menu_redraw            u8
+20000B30 menu_depth             u8
+20007DF0 menu_path              u32[20]
+20007E40 menu_path_prev_cursor  u32[20]
+20007EF4 menu_path_top          u32[20]
+20007F44 menu_path_b08          u32[20]
+20007FE4 menu_path_node         u8[20]
+20007E90 menu_path_item         ptr[20]
+20007EE0 menu_path_type         u8[20]
+20007F94 menu_path_count        u32[20]
+20000AD4 list_cursor            u32
+20000AD8 list_prev_cursor       u32
+20000B04 list_top               u32
+20000AFC list_count             u32
+20000B24 list_items             ptr
+20000B00 list_type              u8
+20000B2C list_title             ptr
+200006C8 chanset_opt_desc       ptr[42]
+# --- PC link
+2000D5A8 pc_buf                 u8[1024]
+2000D9A8 usb_cdc_handle         -
+20001090 pc_rx_len              u16
+20001092 pc_cmd_valid           u8
+20001096 pc_session             u8
+20001097 pc_code                u8
+200010A8 pc_addr                u32
+200010CA pc_reply_len           u16
+2000EAB8 pc_page_buf            u8[1024]
+# --- SPI NAND
+200058B0 nand_bbt               -      # bad-block remap table; +0x1F6 count, +0x1F7 enabled
+2000507C nand_page_buf          u8[2048]
+# --- SCT3258
+2000F8F8 sct_msg                -      # +0 TYPE, +4 nfields, +6 ids[30], +0x24 ptrs[30], +0x9C rx pkts
+2000F7CC sct_txbuf              u8[300]
+2000F6A0 sct_rxbuf              u8[300]
+2000F631 sct_rx_state           -
+200011C0 sct_evt_mask           u32
+# --- RF
+20000DE0 rf_is_1846n            u8
+20000DE1 rf_variant_tag         u8[5]
+# --- BT (UART4)
+2000AC04 bt_rxbuf               u8[64]
+# --- ADC / audio (adc_dma_init_pc0_audio_pc1_batt: ADC1 ch10/11/12 -> DMA1 ch1 circular)
+20001048 adc_pc0_rx_audio       u16    # RX audio (pre-squelch), 12-bit
+2000104A adc_pc1_battery        u16
+2000104C adc_pc2_unknown        u16
+20000178 tim6_audio_mode        u8     # 1 tone sampling, 2 9.02 kHz 8-bit capture, 3 11.2 kHz zero-cross periods
+200027A0 audio_sample8_buf      -
+2000240A audio_zc_periods       u8[32]

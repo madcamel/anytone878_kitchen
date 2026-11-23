@@ -1,0 +1,66 @@
+"""Tiny client for the harness API served by scripts/ghidra_serve.py (see its docstring)."""
+import json
+import urllib.error
+import urllib.parse
+import urllib.request
+
+import hcfg
+
+
+class ApiError(Exception):
+    pass
+
+
+def _call(req):
+    try:
+        with urllib.request.urlopen(req, timeout=180) as r:
+            d = json.load(r)
+    except urllib.error.HTTPError as e:
+        d = json.load(e)
+    except urllib.error.URLError as e:
+        raise ApiError("harness API not reachable at %s (scripts/ghidractl start): %s" % (hcfg.API, e.reason))
+    if not d.get("success"):
+        raise ApiError(d.get("error", "error"))
+    return d["data"]
+
+
+def get(ep, **params):
+    return _call(hcfg.API + ep + "?" + urllib.parse.urlencode(params))
+
+
+def post(ep, **params):
+    return _call(urllib.request.Request(hcfg.API + ep, data=urllib.parse.urlencode(params).encode()))
+
+
+def ahex(a):
+    return "0x%x" % a if isinstance(a, int) else (a if a.lower().startswith("0x") else "0x" + a)
+
+
+def functions():
+    out, off = [], 0
+    while True:
+        d = get("functions", offset=off, limit=2000)
+        out += d["items"]
+        if not d["has_more"]:
+            return out
+        off += 2000
+
+
+def decompile(a):
+    return get("decompile", address=ahex(a))["code"]
+
+
+def function(a):
+    return get("function", address=ahex(a))
+
+
+def xrefs_to(a, limit=500):
+    return get("xrefs_to", address=ahex(a), limit=limit)["items"]
+
+
+def disassemble(a):
+    return get("disassemble", address=ahex(a))["items"]
+
+
+def rename(a, name):
+    return post("rename_function", address=ahex(a), new_name=name)

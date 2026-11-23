@@ -1,0 +1,26 @@
+# Vendor firmware: copyrighted. Everyone supplies their own copy (scripts/get_firmware.py).
+/firmware/*
+!/firmware/README.md
+/vendor/
+
+# Generated from the firmware (contains firmware bytes or derived code); rebuild locally.
+# work/: Ghidra project (scripts/bootstrap.sh) and decompile cache (tools/dump.py)
+/work/
+# out/: built images, RAM image, radio dumps (personal data: codeplug, contacts, serial number)
+/out/
+
+# Packed Ghidra projects contain the firmware image (scripts/project_pack.sh): never commit
+*.gzf
+*.CDD
+*.cdd
+
+# Third-party reference material (copyrighted datasheets, vendor sources): scripts/fetch_refs.sh
+/docs/ref/
+
+# Local environment
+/.venv/
+/.venv-*/
+__pycache__/
+*.pyc
+/.mcp.json
+.claude/settings.local.json

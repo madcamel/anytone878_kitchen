@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "ghidra": {
+      "type": "stdio",
+      "command": "/path/to/ghidra-mcp-venv/bin/ghidra-mcp",
+      "args": ["--ghidra-server", "http://127.0.0.1:8080/"],
+      "env": {}
+    }
+  }
+}
