@@ -149,21 +149,41 @@ and every burst it catches becomes a reusable test vector.
   switch to the APRS channel (hook `sigdec_select_for_channel`). A host-armed recorder is too slow
   for that, so record with dual watch off.
 
-## Plan: MCU APRS receive
+## The aprs_rx mod (MCU APRS receive)
 
-1. **Capture test (hardware feasibility):** collect bursts with the recorder above. Check the
-   audio level and DC bias, how much de-emphasis tilts the tones, and whether `afsk1200.py`
-   decodes them. Keep good and marginal WAVs as fixed test vectors.
-2. **Demodulator in the TIM6 ISR:** 1200/2200 Hz correlators or Goertzel filters, a DPLL bit
-   clock, NRZI decoding, HDLC flag detection and bit unstuffing, then an FCS check. The ISR hands
-   complete frames to a small ring buffer. At about 60–100 cycles per sample, that is under 1 % of
-   the 120 MHz CPU.
-3. **Shim:** from p14 (or the ISR) write `'~' + frame + FCS + '~'` into `aprs_rx_frame`, then set
-   `aprs_rx_frame_ready` using the same conditions as `aprs_rx_frame_byte`. Patch
-   `bt_board_probe` so `aprs_board_present` ends up 1. The stock parser, inbox, popup, ack and
-   menus then work unchanged.
-4. **Coexistence:** run the AFSK mode only on channels with APRS Receive set and while TIM6 is
-   idle (mode 0). 2-tone, 5-tone and DTMF decoding take TIM6 when a channel enables them.
+`patches/modbuild.py aprs_rx` → `out/D878UV_V4.00_base+aprs_rx/`. Either/or with `capture`.
+
+**Using it on the radio:** the APRS menus are visible now. In Chan Set, turn **APRS Receive** on for
+the channel or VFO on 144.390 (analog). Received packets then go through the stock stack: the
+receive popup, the **Ana APRS Info** inbox (APRS menu), the Info Filter, and message handling.
+**A message addressed to your own callsign makes the radio transmit an ack** (stock behaviour).
+Dual watch works: the demod restarts every time the radio switches to the APRS channel.
+
+**How it works** (`patches/mods/aprs_rx/aprs_rx.c`):
+- TIM6 mode 5 at 9600 Hz: DC block → 1200/2200 Hz correlators over one bit (8 samples) → 4 slicers
+  with space-tone gains 0.5/0.7/1.0/1.4 (picked on recorded bursts: de-emphasis tilt varies by
+  station) → DPLL → NRZI → HDLC → CRC (X.25 residue 0xF0B8). One pending frame buffer; the same
+  FCS within 2 s from another slicer is a duplicate.
+- `aprs_sigdec` wraps both `sigdec_select_for_channel` calls in `rf_cmd_apply_lo`: if TIM6 is left
+  idle and the channel is analog with APRS Receive on, it starts mode 5.
+- `aprs_p14` wraps the p14 call to `aprs_rx_frame_process`. It copies the pending frame into
+  `aprs_rx_frame` in the board's layout (`+APRS:~` body FCS `~`, `aprs_rx_frame_len` = body + 6)
+  under the stock conditions (APRS Receive, analog, no TX holdoff, `ana_rx_audio_open`), then runs
+  the parser. With a CTCSS/DCS squelch, packets from stations without the tone are dropped, as
+  stock.
+- `aprs_fcs` wraps the parser's `ax25_fcs_check`: frames from the mod are already verified, and
+  the stock check would reject any frame with 0x7E in its info field.
+- `bt_board_probe` starts with `aprs_board_present = 1`, so the menus are visible.
+- Frames longer than 191 bytes (body + FCS) are dropped: the stock UART path never delivers more,
+  and `aprs_rx_frame_len` is a byte.
+- The RAM slice isn't cleared at boot. A marker word at its end shows the state is initialised;
+  until then nothing is handed to the parser.
+
+**Verification:** the builder's test plays synthetic AFSK (including 0x7E in the info and
+de-emphasis tilt) through the real hook site and checks what reaches the parser.
+`patches/mods/aprs_rx/replay.py` runs the built image over every recorded burst in `out/aprscap/`
+and compares the result with `tools/afsk1200.py`. The worst case is about 1000 instructions in one
+interrupt (a frame completing).
 
 ## Open questions
 - What "On(Mute)" changes (likely mutes the speaker while a frame is received).

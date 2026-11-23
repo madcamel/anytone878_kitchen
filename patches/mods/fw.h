@@ -32,6 +32,7 @@ void TIM_Cmd(void *tim, int enable);
 int  chan_is_digital(void);
 void aprs_rx_frame_process(void);
 void sigdec_select_for_channel(void);
+int  ax25_fcs_check(volatile uint8_t *start, uint32_t offset);
 
 #define TIM6 ((void *)0x40001000)
 #endif

@@ -34,6 +34,8 @@ def crc16_x25(data):
 
 # ---------- AX.25 helpers ----------
 def _addr(call, last, cbit=False):
+    if call.endswith("*"):                  # digipeated (H bit)
+        call, cbit = call[:-1], True
     c, _, ssid = call.partition("-")
     c = (c.upper() + "      ")[:6]
     return bytes(ord(x) << 1 for x in c) + bytes([0x60 | (int(ssid or 0) << 1) | (0x80 if cbit else 0) | int(last)])

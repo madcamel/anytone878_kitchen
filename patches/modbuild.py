@@ -98,7 +98,8 @@ def compile_mod(m, tmp):
     objs = []
     for src in m.SOURCES:
         o = Path(tmp) / (m.NAME + "_" + Path(src).stem + ".o")
-        subprocess.run(["clang", *CFLAGS, "-I", str(MODS), "-c", str(m.DIR / src), "-o", str(o)], check=True)
+        subprocess.run(["clang", *CFLAGS, "-I", str(MODS), "-DMOD_RAM_SIZE=%du" % m.RAM,
+                        "-c", str(m.DIR / src), "-o", str(o)], check=True)
         objs.append(o)
     if len(objs) != 1:
         raise SystemExit("%s: one source file per mod for now (elflink links a single object)" % m.NAME)
@@ -125,6 +126,14 @@ def main():
     assert len(base) == IMG_END - BASE
     fw = firmware_symbols()
     mods = [load_mod(a) for a in args]
+
+    owner = {}                                       # hook conflicts first: clearest error for either/or mods
+    for m in mods:
+        for h in m.HOOKS:
+            for a in range(h["site"], h["site"] + len(bytes.fromhex(h["orig"]))):
+                if a in owner and owner[a] != m.NAME:
+                    sys.exit("%s and %s both hook %#x: they are either/or" % (owner[a], m.NAME, h["site"]))
+                owner[a] = m.NAME
 
     img = bytearray(base) + b"\xFF" * (AREA_END - IMG_END)
     o = lambda a: a - BASE

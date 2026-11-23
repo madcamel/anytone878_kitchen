@@ -29,6 +29,9 @@ build "debug channel (on r1) D878UV" 257c2af64a8d4ae9dfbae8580fefd3c5566f59f407b
 	"$ROOT/out/D878UV_V4.00_bandunlock_r1_dbg1/D878UV_V4.00_bandunlock_r1_dbg1.bin" "$PY" "$ROOT/patches/mkpatch_debug.py"
 build "mods: baseline + capture" c5174a424a4ad8238323db50f075eb3e7472e6976523e30c3b9041f5c1ccfa32 \
 	"$ROOT/out/D878UV_V4.00_base+capture/D878UV_V4.00_base+capture.bin" "$PY" "$ROOT/patches/modbuild.py" capture
+build "mods: baseline + aprs_rx" a960e89f198ccdec14976ec131ee1d2dc8079747a8d68fa66859e924ca062f0e \
+	"$ROOT/out/D878UV_V4.00_base+aprs_rx/D878UV_V4.00_base+aprs_rx.bin" "$PY" "$ROOT/patches/modbuild.py" aprs_rx
+check "modbuild refuses capture+aprs_rx (same TIM6 hook)" sh -c "'$PY' -I '$ROOT/patches/modbuild.py' capture aprs_rx 2>&1 | grep -q 'either/or'"
 
 echo "offline tools"
 check "raminit: chanset option table -> Band width desc" sh -c \

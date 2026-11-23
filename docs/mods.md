@@ -54,5 +54,9 @@ patches/mods/<name>/
 ## Independence
 
 Mods don't call each other or share RAM. If two mods need the same hook site they are
-**either/or**: the builder refuses to combine them. Currently `capture` (an APRS RX development
-recorder) and the coming APRS RX mod both use the TIM6 dispatch and are either/or.
+**either/or**: the builder refuses to combine them.
+
+| Mod | What | Notes |
+|---|---|---|
+| `aprs_rx` | analog APRS receive on the MCU (`docs/aprs.md`) | either/or with `capture` (TIM6 dispatch) |
+| `capture` | squelch-triggered RX audio recorder for APRS development (`tools/aprscap.py`) | either/or with `aprs_rx` |
