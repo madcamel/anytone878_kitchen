@@ -64,7 +64,30 @@
 20000DE0 rf_is_1846n            u8
 20000DE1 rf_variant_tag         u8[5]
 # --- BT (UART4)
-2000AC04 bt_rxbuf               u8[64]
+2000AC04 bt_rxbuf               u8[200]  # UART4 line buffer, index bt_rx_len (<200)
+20000EAD bt_rx_len              u8
+20000EB3 bt_rx_hold             u8     # !=0: bt_uart4_rx_byte drops bytes (set while a frame is processed)
+20000EDC bt_module_ok           u8     # bt_board_probe got an answer
+20000F48 aprs_board_present     u8     # probe reply starts "APRS"; unhides Ana APRS Info / APRS Receive menus
+# --- APRS RX (frames arrive as "+APRS:" + raw AX.25 on UART4; see docs/aprs.md)
+20000F49 aprs_rx_in_frame       u8
+20000F4B aprs_rx_hdr_state      u8     # 0 wait 0x03, 1 wait 0xF0, 2 wait closing '~'
+20000F4A aprs_rx_frame_ready    u8     # set by aprs_rx_frame_byte, consumed by aprs_rx_frame_process (p14)
+20000F73 aprs_rx_frame_len      u8
+2000C10F aprs_rx_frame          u8[300]  # copy of bt_rxbuf: "+APRS:" .. '~' addr ctl pid info FCS '~'
+20000E68 crc16_x25_val          u16
+20000F4E aprs_dst_call          u8[6]  # AX.25 dest (shifted back to ASCII); +7 = ssid
+20000F56 aprs_src_call          u8[6]  # +6 (0x20000F5C) = ssid
+2000C23B aprs_path_raw          u8[60]
+2000C277 aprs_path              u8[36]  # 4 x 9-char digipeater fields
+20000F4C aprs_tx_holdoff        u16    # !=0 (own AFSK TX recently): RX frames ignored
+20000F9C aprs_filter_on         u8     # Info Filter: only accept sources in the 32-entry list
+2000A51B aprs_pass_all          u8     # APRSPassAll: accept frames that fail the FCS
+20000FE2 aprs_rx_kind           u8     # 0 position/info, 2 message to me
+2000C394 aprs_info_rec          u8[256]  # record written to the NAND inbox
+20000FD6 aprs_info_count        u16
+2000003E ana_sq_open            u8     # analog squelch (+CTCSS/DCS per squelch mode) open
+20000047 ana_rx_audio_open      u8     # copy of ana_sq_open; gates APRS frame acceptance
 # --- ADC / audio (adc_dma_init_pc0_audio_pc1_batt: ADC1 ch10/11/12 -> DMA1 ch1 circular)
 20001048 adc_pc0_rx_audio       u16    # RX audio (pre-squelch), 12-bit
 2000104A adc_pc1_battery        u16
