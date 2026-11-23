@@ -139,6 +139,14 @@ and every burst it catches becomes a reusable test vector.
   Hide") retunes every ~120 ms and resets TIM6 each time: the recorder (and a future demod) needs it
   off. Calling `key_sub_ch_toggle` over the debug channel from the standby screen works and saves
   the setting.
+- The volume knob doesn't change PC0 (same bias and level in every capture): PC0 is before the
+  volume control, so its clipping is fixed by the hardware.
+- Dual watch with APRS RX: `dualwatch_signal_check` (p14 loop, 10 ms) locks the radio on a side
+  after 2 consecutive hits of RSSI ≥ threshold (0x20009F3A VHF / 0x20009F24 UHF) plus the AT1846S
+  reg 0x1C bit 0. The dwell is ~120 ms per side, so up to ~140–160 ms of a packet's preamble can be
+  lost. Local stations send ~240–550 ms of flags, so packets survive if the demod restarts on every
+  switch to the APRS channel (hook `sigdec_select_for_channel`). A host-armed recorder is too slow
+  for that, so record with dual watch off.
 
 ## Plan: MCU APRS receive
 

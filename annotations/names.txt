@@ -340,6 +340,7 @@
 080598dc menu_L11_back
 080599f8 menu_key_back
 08059ab8 menu_open
+0805a382 dualwatch_enabled
 0805c7cc dmr_mbox_wait
 0805c7ee task_p11_event_handler
 0805d6d0 event_task_create
@@ -361,6 +362,7 @@
 080616f8 task_p7_rf_cmd
 0806174c rf_cmd_task_create
 08061772 rf_cmd_post
+08061a5a dualwatch_signal_check
 08066a08 evt_dequeue
 08066a38 evt_enqueue
 08066ae8 dmr_bb_cmd_dequeue
