@@ -14,6 +14,7 @@ Debug-patch commands (firmware built by patches/mkpatch_debug.py; work in normal
   radio.py call FN [A0..A3] --yes   call a Thumb function, print r0/r1
   radio.py key CODE [CODE..]        inject key codes (0x0D Menu, 0x0E Exit, 0x0F/0x10 Up/Down, 1-10 digits)
   radio.py screen                   print screen ID / menu node / path
+  radio.py mods                     list the mods installed in the mod area (patches/modbuild.py images)
 """
 import sys, os, time, struct, argparse, fcntl
 import serial
@@ -22,6 +23,7 @@ import hcfg
 
 PORT = hcfg.PORT
 ACK = 0x06
+MOD_AREA = 0x080E7800   # patches/modbuild.py header
 
 
 class Radio:
@@ -109,6 +111,24 @@ class Radio:
         if len(r) != 12 or r[:2] != b"\xd2\x06":
             raise IOError("call %08x: bad reply %r" % (fn, r))
         return struct.unpack_from("<II", r, 4)
+
+    def mods(self):
+        """Mod table from the mod area header (patches/modbuild.py): {name: dict(version, code,
+        code_len, ram, ram_len)}; {} on an image without mods."""
+        h = self.peek(MOD_AREA, 16)
+        if h[:8] != b"D878MODS":
+            return {}
+        fmt, n, _end = struct.unpack_from("<HHI", h, 8)
+        if fmt != 1:
+            raise IOError("mod table format %d unknown" % fmt)
+        out = {}
+        raw = self.peek(MOD_AREA + 16, 32 * n) if n else b""
+        for k in range(n):
+            e = raw[32 * k:32 * k + 32]
+            name = e[:12].rstrip(b"\0").decode()
+            ver, _, code, code_len, ram, ram_len = struct.unpack_from("<HHIIII", e, 12)
+            out[name] = dict(version=ver, code=code, code_len=code_len, ram=ram, ram_len=ram_len)
+        return out
 
     def key(self, code):
         """Same as keypad_scan: key code -> 0x20000901, FUN_08028F50 posts it to the UI task's mailbox
@@ -225,6 +245,12 @@ def main():
             for k in a.args:
                 r.key(int(k, 0)); time.sleep(0.3)
             print("screen=%#04x" % r.peek(0x20000951, 1)[0])
+        elif a.cmd == "mods":
+            ms = r.mods()
+            if not ms:
+                print("no mod table at %#x (baseline/stock image)" % MOD_AREA)
+            for n, m in ms.items():
+                print("%-12s v%-3d code %#x+%-5d RAM %#x+%d" % (n, m["version"], m["code"], m["code_len"], m["ram"], m["ram_len"]))
         elif a.cmd == "screen":
             scr = r.peek(0x20000951, 1)[0]; node = r.peek(0x20000B20, 1)[0]; depth = r.peek(0x20000B30, 1)[0]
             path = struct.unpack("<10I", r.peek(0x20007DF0, 40))

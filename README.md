@@ -31,12 +31,15 @@ DMR/analog handhelds, from Linux:
   (decompile, xrefs, call sweeps, menu maps, renaming) that work well from scripts and LLM agents.
 - **Patch builders** that assemble, place and **emulate** firmware patches before writing an image:
   band unlock (region 1) and a USB debug channel (RAM peek/poke/function call/key injection on the
-  running radio).
+  running radio) form the baseline; everything else is a **mod** written in C, with its own code,
+  RAM, hooks and emulation test, placed in a dedicated area after the stock image
+  (`patches/modbuild.py`, `docs/mods.md`).
 - **`tools/radio.py`**: talks to the radio over the programming cable: flash firmware, dump the
   SPI NAND, and (with the debug patch) inspect and drive it live.
 
 Written knowledge lives in `docs/`: the RAM debug channel (`debug_channel.md`), the PC/USB
-protocol (`pc_link.md`), the menu/UI engine (`ui.md`), the band-unlock patch (`patch.md`). `OVERVIEW.md` is a dense map of the whole
+protocol (`pc_link.md`), the menu/UI engine (`ui.md`), the band-unlock patch (`patch.md`), mods
+(`mods.md`), APRS (`aprs.md`). `OVERVIEW.md` is a dense map of the whole
 firmware (hardware, tasks, RF, DMR chip protocol), written for AI coding agents but useful to humans.
 
 > **The firmware is not included.** It's AnyTone's copyright. Everyone uses their own copy of the
@@ -45,7 +48,7 @@ firmware (hardware, tasks, RF, DMR chip protocol), written for AI coding agents 
 
 ## Requirements
 
-- Linux, Python 3.10+, `curl`; `pdftotext` (poppler-utils) for the reference docs.
+- Linux, Python 3.10+, `curl`, `clang` (any recent version; compiles mods); `pdftotext` (poppler-utils) for the reference docs.
 - **Ghidra 12.1.x** (`GHIDRA_INSTALL_DIR`, default `~/opt/ghidra_12.1.4_PUBLIC`) with a JDK it accepts.
 - Optional: the GhidraMCP extension (LaurieWired, 2.x) if you want Ghidra as an MCP server for an
   AI assistant (`.mcp.json` is local; the harness itself doesn't need it).

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """aprscap.py : record squelch-triggered RX audio bursts from the radio (capture firmware) as WAVs.
 
-Needs out/D878UV_V4.00_bandunlock_r1_dbg1_cap1 flashed (patches/mkpatch_capture.py). Run it through
+Needs an image with the `capture` mod (patches/modbuild.py capture); its RAM comes from the radio's
+mod table, so it follows wherever the builder placed it. Run it through
 scripts/aprscapctl start|stop|status; it holds the radio port, so other radio.py commands wait.
 
 Loop (every POLL s): if tim6_audio_mode != 4 and the radio isn't transmitting and no channel tone
@@ -21,11 +22,25 @@ import struct
 import sys
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "patches"))
 import afsk1200  # noqa: E402
 import hcfg  # noqa: E402
-import mkpatch_capture as C  # noqa: E402
 from radio import Radio  # noqa: E402
+
+
+class C:
+    """Capture block layout (patches/mods/capture/capture.c); CAP/N filled from the mod table."""
+    MODE = 0x20000178                   # tim6_audio_mode
+    RATE = 9600
+    PRE = 1920
+    CAP = BUF = N = POST = None
+
+    @classmethod
+    def locate(cls, r):
+        m = r.mods().get("capture")
+        if not m:
+            raise SystemExit("radio has no `capture` mod (flash out/D878UV_V4.00_base+capture/)")
+        cls.CAP, cls.BUF, cls.N = m["ram"], m["ram"] + 16, m["ram_len"] - 16
+        cls.POST = cls.N - cls.PRE
 
 TIM6 = 0x40001000
 TIM_CMD = 0x08006730
@@ -94,6 +109,7 @@ def main():
     signal.signal(signal.SIGTERM, on_term)
     signal.signal(signal.SIGINT, on_term)
     r = Radio()
+    C.locate(r)
     log("started pid %d, period %d (%d Hz nominal), ring %d samples, pre %d, post %d"
         % (os.getpid(), PERIOD, C.RATE, C.N, C.PRE, C.POST))
     n = 0

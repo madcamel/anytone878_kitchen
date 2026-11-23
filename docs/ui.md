@@ -197,3 +197,6 @@ call states) followed by `switch(key)`, each case an if-chain over the screen ID
    entry (Narrow only) when the channel is digital **or the region byte is 1**. Region 1 is the
    one the band-unlock patch widened, so a menu-side AM option on region 1 needs that clamp
    patched too. CPS-programmed channels aren't affected.
+
+## Scan list behaviour
+Scan list is a **per-channel** codeplug field; picking one in the radio menu writes only the current channel. For "scan list follows zone", set each channel's Scan List in CPS (Channel.CSV `Scan List`; zones in Zone.CSV). A channel in several zones holds one list.

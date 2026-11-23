@@ -110,11 +110,12 @@ therefore only unhides the APRS UI.
 Test packets only come from other stations, on their schedule, so the recorder runs unattended
 and every burst it catches becomes a reusable test vector.
 
-- `patches/mkpatch_capture.py` → `out/D878UV_V4.00_bandunlock_r1_dbg1_cap1/` (on top of the
-  debug image). In `TIM6_IRQHandler`, the mode-3 branch now calls `cap_isr` (0x080078EC, in the dead
-  FLASH option-byte functions). `cap_isr` tail-calls the stock zero-cross handler for mode 3 and
-  records in mode 4. Mode 4 stores ADC>>4 at 9.6 kHz into a ring in free RAM (CAP block 0x20015740,
-  10416 samples ≈ 1.09 s). The squelch opening (`ana_sq_open`) triggers a capture: it keeps about
+- The `capture` mod (`patches/mods/capture/`, build with `patches/modbuild.py capture`; see
+  `docs/mods.md`) is a development tool, either/or with the coming APRS RX mod (both take the TIM6
+  mode dispatch). In `TIM6_IRQHandler` the mode-3 branch now calls `cap_tim6(mode)` in the mod area,
+  which tail-calls the stock zero-cross handler for mode 3 and records in mode 4. Mode 4 stores
+  ADC>>4 at 9.6 kHz into a ring in the mod's RAM slice (16-byte header + 10416 samples ≈ 1.09 s; the
+  host finds it through the mod table). The squelch opening (`ana_sq_open`) triggers a capture: it keeps about
   200 ms from before the trigger, then records until the ring is full or 50 ms after the squelch
   closes, and freezes.
 - `scripts/aprscapctl start|stop|status|tail` runs `tools/aprscap.py`. That script arms the
