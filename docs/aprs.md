@@ -94,19 +94,45 @@ therefore only unhides the APRS UI.
 - ADC1 runs a continuous scan of ch10 (PC0 RX audio), ch11 (PC1 battery) and ch12 (PC2), DMA
   circular into 0x20001048. `adc_pc0_rx_audio` always holds a fresh 12-bit sample. The scan rate
   is far above audio rate.
-- TIM6 (timer clock 120 MHz, rate = 120 MHz / (period + 1), `tim6_set_rate(period, 0)`) drives the
-  software decoders through `tim6_audio_mode`: 1 tone sampling, 2 9.02 kHz 8-bit capture
-  (period 0x33F1), 3 zero-crossing periods. Mode 0 is idle. The ISR does nothing while
-  0x200001B1 != 0. A free mode value can host an AFSK demodulator at 9600 Hz (period 12499, 8
-  samples per bit).
+- TIM6 (timer clock assumed 120 MHz, rate = clock / ((psc + 1)(period + 1)),
+  `tim6_set_rate(period, psc)`) drives the software decoders through `tim6_audio_mode`: 1 tone
+  sampling, 2 9.02 kHz 8-bit capture (period 0x33F1), 3 zero-crossing periods. Mode 0 is idle.
+  `tim6_init` (boot) enables the update IRQ and NVIC, then stops the timer.
+- **TIM6 lifecycle:** `rf_cmd_apply_lo` (every RX re-entry: channel/VFO change, after TX) calls
+  `sigdec_select_for_channel`, which starts the decoder the channel asks for (rec +0x1A high nibble)
+  or stops TIM6 and sets mode 0. TX (`rf_cmd_apply_hi`, `rf_tx_aprs_afsk`) stops it as well and sets
+  `rf_tx_active` (0x200001B1); the ISR does nothing while that is set. So anything that uses TIM6
+  must be restarted after every retune and TX, and it can't run on channels with 2-tone, 5-tone or
+  DTMF decoding.
+
+## Recording real bursts (capture firmware)
+
+Test packets only come from other stations, on their schedule, so the recorder runs unattended
+and every burst it catches becomes a reusable test vector.
+
+- `patches/mkpatch_capture.py` → `out/D878UV_V4.00_bandunlock_r1_dbg1_cap1/` (on top of the
+  debug image). In `TIM6_IRQHandler`, the mode-3 branch now calls `cap_isr` (0x080078EC, in the dead
+  FLASH option-byte functions). `cap_isr` tail-calls the stock zero-cross handler for mode 3 and
+  records in mode 4. Mode 4 stores ADC>>4 at 9.6 kHz into a ring in free RAM (CAP block 0x20015740,
+  10416 samples ≈ 1.09 s). The squelch opening (`ana_sq_open`) triggers a capture: it keeps about
+  200 ms from before the trigger, then records until the ring is full or 50 ms after the squelch
+  closes, and freezes.
+- `scripts/aprscapctl start|stop|status|tail` runs `tools/aprscap.py`. That script arms the
+  capture over the debug channel (poke mode 4, call `tim6_set_rate` and `TIM_Cmd`), re-arms it
+  after each retune or TX, and saves each burst to `out/aprscap/YYYYMMDD/cap_*.wav` with a `.json`
+  sidecar (RX frequency, pre-trigger length, truncation, measured sample rate, decoded frames). It
+  holds the radio port while it runs.
+- `tools/afsk1200.py FILE.wav…` is the reference decoder (pure Python, integer-friendly; the model
+  for the MCU version). `--selftest` modulates frames at several rates, noise levels and tone tilts.
+- Operating notes: listen on the APRS frequency (A/B dual watch off, so the radio doesn't keep
+  retuning), set the squelch so noise alone doesn't open it, and use a channel without 2-tone,
+  5-tone or DTMF decoding.
 
 ## Plan: MCU APRS receive
 
-1. **Capture test (hardware feasibility):** add a debug-patch TIM6 mode that stores 8-bit PC0
-   samples at 9600 Hz into the free RAM 0x20015720–0x20017FFF (~1.09 s). Start it with
-   `radio.py poke`, play an APRS packet into the radio, then `peek` the buffer and decode it on the
-   PC. This answers three questions: the audio level and DC bias, how much de-emphasis tilts the
-   tones, and whether PC0 carries audio while the squelch is closed or the speaker is muted.
+1. **Capture test (hardware feasibility):** collect bursts with the recorder above. Check the
+   audio level and DC bias, how much de-emphasis tilts the tones, and whether `afsk1200.py`
+   decodes them. Keep good and marginal WAVs as fixed test vectors.
 2. **Demodulator in the TIM6 ISR:** 1200/2200 Hz correlators or Goertzel filters, a DPLL bit
    clock, NRZI decoding, HDLC flag detection and bit unstuffing, then an FCS check. The ISR hands
    complete frames to a small ring buffer. At about 60–100 cycles per sample, that is under 1 % of
@@ -119,7 +145,6 @@ therefore only unhides the APRS UI.
    idle (mode 0). 2-tone, 5-tone and DTMF decoding take TIM6 when a channel enables them.
 
 ## Open questions
-- 0x200001B1, which silences TIM6 and several key handlers.
 - What "On(Mute)" changes (likely mutes the speaker while a frame is received).
 - Which modules answer `+APRS:` (D878UVII Plus BT/APRS board?), and whether the binary-protocol
   module (`bt_probe`, 9600 baud) is a different part.

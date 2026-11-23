@@ -1,0 +1,35 @@
+#!/bin/sh
+# aprscapctl start|stop|status|tail — APRS burst recorder (tools/aprscap.py). Manage it only through
+# this script: pidfile + process group, single instance (flock inside the program).
+# Output: out/aprscap/YYYYMMDD/cap_*.wav + .json; log: out/aprscap/aprscap.log
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+DIR=$ROOT/out/aprscap
+PID=$DIR/aprscap.pid
+LOG=$DIR/aprscap.log
+PY=$ROOT/.venv/bin/python
+
+running() { [ -f "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null; }
+
+case "$1" in
+start)
+	if running; then echo "already running (pid $(cat "$PID"))"; exit 0; fi
+	mkdir -p "$DIR"
+	setsid "$PY" -u "$ROOT/tools/aprscap.py" >>"$LOG" 2>&1 < /dev/null &
+	echo $! > "$PID"
+	sleep 3
+	if running; then echo "running (pid $(cat "$PID")); log $LOG"; tail -3 "$LOG"
+	else echo "died; see $LOG"; tail -10 "$LOG"; rm -f "$PID"; exit 1; fi ;;
+stop)
+	if ! running; then echo "not running"; rm -f "$PID"; exit 0; fi
+	P=$(cat "$PID")
+	kill -TERM -- "-$P" 2>/dev/null || kill -TERM "$P"
+	for i in $(seq 1 20); do kill -0 "$P" 2>/dev/null || break; sleep 0.5; done
+	if kill -0 "$P" 2>/dev/null; then echo "still running after 10s (pid $P)"; exit 1; fi
+	rm -f "$PID"; echo "stopped"; tail -1 "$LOG" ;;
+status)
+	if running; then echo "running (pid $(cat "$PID"))"; else echo "not running"; fi
+	n=$(find "$DIR" -name 'cap_*.wav' 2>/dev/null | wc -l); echo "$n captures in $DIR"
+	[ -f "$LOG" ] && tail -5 "$LOG" ;;
+tail) exec tail -f "$LOG" ;;
+*) echo "usage: $0 start|stop|status|tail"; exit 2 ;;
+esac

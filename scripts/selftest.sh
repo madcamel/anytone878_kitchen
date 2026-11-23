@@ -27,11 +27,14 @@ build "band-unlock r1 D878UVII" 76d5b9c87d4621339064730cfe86b03c89e06c9441889644
 	"$ROOT/out/D878UVII_V4.00_bandunlock_r1/D878UVII_V4.00_bandunlock_r1.bin" "$PY" "$ROOT/patches/mkpatch_bandunlock.py" uvii
 build "debug channel (on r1) D878UV" 257c2af64a8d4ae9dfbae8580fefd3c5566f59f407bc9859376084df69893376 \
 	"$ROOT/out/D878UV_V4.00_bandunlock_r1_dbg1/D878UV_V4.00_bandunlock_r1_dbg1.bin" "$PY" "$ROOT/patches/mkpatch_debug.py"
+build "APRS capture recorder (on dbg1) D878UV" 6fd3493536ab724557a23dcbfe6e50bc857765f3999e5c9c25b29bc6972dfe6e \
+	"$ROOT/out/D878UV_V4.00_bandunlock_r1_dbg1_cap1/D878UV_V4.00_bandunlock_r1_dbg1_cap1.bin" "$PY" "$ROOT/patches/mkpatch_capture.py"
 
 echo "offline tools"
 check "raminit: chanset option table -> Band width desc" sh -c \
 	"'$PY' '$ROOT/tools/raminit.py' 200006f0 1 2>/dev/null | grep -q '200006f0 \[ 0\] 080a9680'"
 check "radio.py --help" "$PY" "$ROOT/tools/radio.py" --help
+check "afsk1200 reference decoder selftest" "$PY" -I "$ROOT/tools/afsk1200.py" --selftest
 
 echo "harness API (scripts/ghidractl start)"
 if curl -s -m3 "${D878_API:-http://127.0.0.1:8081/}program_info" >/dev/null 2>&1; then
