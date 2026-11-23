@@ -95,3 +95,5 @@
 20000178 tim6_audio_mode        u8     # 1 tone sampling, 2 9.02 kHz 8-bit capture, 3 11.2 kHz zero-cross periods
 200027A0 audio_sample8_buf      -
 2000240A audio_zc_periods       u8[32]
+# --- unsorted (tools/glob.py)
+200001B1 rf_tx_active           u8     # set at TX start (rf_cmd_apply_hi, rf_tx_aprs_afsk, PC quiesce); TIM6 ISR idles while set

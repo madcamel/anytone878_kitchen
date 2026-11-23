@@ -193,6 +193,7 @@
 0800d872 dtmf_live_step
 0800d8a8 task_p6_sig_encoder
 0800d8d8 sig_task_create
+0800de8c sigdec_select_for_channel
 0800f710 fm_write_regs02_05
 0800f72a fm_chip_init
 0800f762 fm_set_volume
@@ -353,6 +354,7 @@
 0805faaa rf_squelch_cal_apply
 0805fd5e rf_frontend_tune_from_tables
 08060284 rf_cmd_apply_lo
+08060c56 rf_tx_aprs_afsk
 08060e58 rf_cmd_apply_hi
 080616d6 rf_cmd_mbox_wait
 080616f8 task_p7_rf_cmd
@@ -378,6 +380,7 @@
 0806f036 sig_seq_s16_afsk_end
 0806f76e popup_sending_digi_aprs
 0807025e popup_sending_ana_aprs
+0807027c aprs_ana_send
 08070f40 bt_uart4_init
 080710d2 uart4_send_byte
 08071126 bt_send_frame
@@ -437,6 +440,7 @@
 0807b344 frontend_tune_pwm_write
 0807b44e tone_timer_enable
 0807b4f0 tim6_set_rate
+0807b512 tim6_init
 0807b646 i2c_start
 0807b686 i2c_stop
 0807b78e i2c_write_byte
