@@ -20,6 +20,7 @@ import os
 import signal
 import struct
 import sys
+import termios
 import time
 
 import serial
@@ -170,7 +171,7 @@ def main():
                     n += 1
                     save(r, h, rate, n)
                 time.sleep(POLL)
-            except (IOError, OSError, serial.SerialException) as e:
+            except (IOError, OSError, serial.SerialException, termios.error) as e:
                 log("radio lost (%s); waiting for it to come back" % e)
                 t0 = None
                 last_err = None
@@ -180,7 +181,7 @@ def main():
                         C.locate(r)
                         log("radio back; ring %d samples at %#x" % (C.N, C.CAP))
                         break
-                    except (IOError, OSError, serial.SerialException, SystemExit) as e2:
+                    except (IOError, OSError, serial.SerialException, termios.error, SystemExit) as e2:
                         time.sleep(5)
                         if str(e2) != last_err and "did not come back" not in str(e2):
                             log("still unavailable: %s" % e2)

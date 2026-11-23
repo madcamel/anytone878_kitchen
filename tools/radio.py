@@ -16,7 +16,7 @@ Debug-patch commands (firmware built by patches/mkpatch_debug.py; work in normal
   radio.py screen                   print screen ID / menu node / path
   radio.py mods                     list the mods installed in the mod area (patches/modbuild.py images)
 """
-import sys, os, time, struct, argparse, fcntl
+import sys, os, time, struct, argparse, fcntl, termios
 import serial
 
 import hcfg
@@ -96,7 +96,7 @@ class Radio:
                     self.s = serial.Serial(port, 115200, timeout=self.s.timeout)
                     self.s.reset_input_buffer()
                     return
-                except (OSError, serial.SerialException):
+                except (OSError, serial.SerialException, termios.error):
                     pass
             time.sleep(1)
         raise IOError("radio port %s did not come back within %d s" % (port, wait))
