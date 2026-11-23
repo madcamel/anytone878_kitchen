@@ -5,6 +5,20 @@ Claude or Codex. Use a good model. The documentation is obviously LLM written an
 for humans. The human documentation: Plug this into your agent, plug your radio into your PC, and
 start hacking!
 
+
+Here's what it can do out of the box:
+- Build band-unlocked firmware
+- Build debug firmware with RAM read/write primitives for development and debugging
+- Dump and flash firmware (take backups first huh?)
+- Efficiently map out any subsystem of the radio's firmware
+
+It should be able to build features and customize firmware without requiring you to have
+a background in reverse engineering. The difficult bits have been done.
+
+
+**LLM generated text below**
+
+
 **Agents:** read `OVERVIEW.md` first and keep it up to date as you work; it has the rules.
 
 Tools for reverse engineering and modifying the firmware of the AnyTone AT-D878UV (and D878UVII)
