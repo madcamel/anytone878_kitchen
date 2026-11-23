@@ -28,7 +28,10 @@ def calls_from(items):
 def data_refs(items):
     out = collections.defaultdict(collections.Counter)
     for x in items:
-        ta = int(x["to_address"], 16)
+        try:
+            ta = int(x["to_address"], 16)
+        except ValueError:                  # stack/register refs, e.g. "Stack[-0x1c]"
+            continue
         if 0x20000000 <= ta < 0x20020000 or 0x40000000 <= ta < 0x60000000:
             out[(ta, x.get("to_symbol"))][kind(x["type"])] += 1
     return out
