@@ -1,25 +1,22 @@
-# AnyTone AT-D878UV firmware harness
+# AnyTone AT-D878UV firmware kitchen
 
-Hey folks. This is yet another one of those repos that's designed to be used with an agent like
-Claude or Codex. Use a good model. The documentation is obviously LLM written and not really meant
-for humans. The human documentation: Plug this into your agent, plug your radio into your PC, and
-start hacking!
+Hey folks. An actual human here, writing this with my fleshy phalanges. There are too many LLM
+generated project summaries out there. They are difficult to read and frankly it's a bit rude
+to expect humans to ingest so much flavourless "documentation". Here's what you need to know:
 
+- This repo is designed to be used with an agent like Claude Code or Codex. Use a good model.
+- The idea is that you can point your agent at this repo, plug your radio into your PC and vibe code to your heart's content.
+- The difficult bits have been done. You should be able to customize and modify firmware without any reverse engineering experience.
 
-Here's what it can do out of the box:
-- Build band-unlocked firmware
-- Build debug firmware with RAM read/write primitives for development and debugging
-- Dump and flash firmware (take backups first huh?)
-- Efficiently map out any subsystem of the radio's firmware
+The first step is to backup your existing firmware. The second step is to build and flash the
+baseline debug firmware. This firmware has a band-unlocked region 1 and contains necessary 
+read/write/jump primitives on the PC/USB interface that allow the model to work with the radio.
 
-It should be able to build features and customize firmware without requiring you to have
-a background in reverse engineering. The difficult bits have been done.
-
-Mods have their own area of flash and can be independently applied. Included mods:
-- Software APRS decoder. Add APRS RX to 878UV without bluetooth module. Has debug functionality to send packets to PC.
+Included mod packages:
+- Software APRS decoder. Add APRS RX to 878UV without bluetooth module
 
 
-**LLM generated text below**
+## LLM generated text below
 
 
 **Agents:** read `OVERVIEW.md` first and keep it up to date as you work; it has the rules.
