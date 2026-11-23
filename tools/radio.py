@@ -83,6 +83,24 @@ class Radio:
     def close(self):
         self.s.close()
 
+    def reopen(self, wait=60):
+        """Reopen the serial port after the radio rebooted/disappeared (keeps the port lock)."""
+        try:
+            self.s.close()
+        except Exception:
+            pass
+        port = self.s.port
+        for _ in range(wait):
+            if os.access(port, os.R_OK | os.W_OK):
+                try:
+                    self.s = serial.Serial(port, 115200, timeout=self.s.timeout)
+                    self.s.reset_input_buffer()
+                    return
+                except (OSError, serial.SerialException):
+                    pass
+            time.sleep(1)
+        raise IOError("radio port %s did not come back within %d s" % (port, wait))
+
     # ---- debug patch (dbg_hook @0x080065C8) ----
     def peek(self, addr, n):
         out = b""

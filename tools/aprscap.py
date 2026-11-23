@@ -22,6 +22,8 @@ import struct
 import sys
 import time
 
+import serial
+
 import afsk1200  # noqa: E402
 import hcfg  # noqa: E402
 from radio import Radio  # noqa: E402
@@ -121,52 +123,68 @@ def main():
     last_report = time.monotonic()
     try:
         while not stop:
-            mode = r.peek(C.MODE, 1)[0]
-            if mode != 4:
-                t0 = None
-                tx = r.peek(RF_TX_ACTIVE, 1)[0]
-                why = "a channel tone decoder owns TIM6 (mode %d)" % mode if mode in (1, 2, 3) else \
-                    "transmitting" if tx else None
-                if why:
-                    if why != warned:
-                        log("not arming:", why)
-                        warned = why
-                else:
-                    now = time.monotonic()
-                    arms = [t for t in arms if now - t < 10]
-                    if len(arms) >= 5:
-                        if warned != "retune":
-                            freqs = {struct.unpack("<I", r.peek(RX_FREQ, 4))[0] * 10 for _ in range(6)}
-                            log("radio retunes constantly (RX freq seen: %s): dual watch (PF function"
-                                " 'Sub Ch Hide' toggles it) or scan is on. Turn it off; waiting."
-                                % ", ".join("%.4f" % (f / 1e6) for f in sorted(freqs)))
-                            warned = "retune"
-                        time.sleep(2)
-                        continue
-                    arm(r)
-                    arms.append(now)
-                    f = struct.unpack("<I", r.peek(RX_FREQ, 4))[0] * 10
-                    if warned is None or f != last_freq or warned == "retune":
-                        log("armed on %.4f MHz" % (f / 1e6))
-                    last_freq = f
-                    warned = ""
+            try:
+                mode = r.peek(C.MODE, 1)[0]
+                if mode != 4:
+                    t0 = None
+                    tx = r.peek(RF_TX_ACTIVE, 1)[0]
+                    why = "a channel tone decoder owns TIM6 (mode %d)" % mode if mode in (1, 2, 3) else \
+                        "transmitting" if tx else None
+                    if why:
+                        if why != warned:
+                            log("not arming:", why)
+                            warned = why
+                    else:
+                        now = time.monotonic()
+                        arms = [t for t in arms if now - t < 10]
+                        if len(arms) >= 5:
+                            if warned != "retune":
+                                freqs = {struct.unpack("<I", r.peek(RX_FREQ, 4))[0] * 10 for _ in range(6)}
+                                log("radio retunes constantly (RX freq seen: %s): dual watch (PF function"
+                                    " 'Sub Ch Hide' toggles it) or scan is on. Turn it off; waiting."
+                                    % ", ".join("%.4f" % (f / 1e6) for f in sorted(freqs)))
+                                warned = "retune"
+                            time.sleep(2)
+                            continue
+                        arm(r)
+                        arms.append(now)
+                        f = struct.unpack("<I", r.peek(RX_FREQ, 4))[0] * 10
+                        if warned is None or f != last_freq or warned == "retune":
+                            log("armed on %.4f MHz" % (f / 1e6))
+                        last_freq = f
+                        warned = ""
+                    time.sleep(POLL)
+                    continue
+                h = hdr(r)
+                now = time.monotonic()
+                if t0 is None:
+                    t0, tk0 = now, h["ticks"]
+                elif now - t0 >= 5:
+                    rate = (h["ticks"] - tk0) / (now - t0)
+                    if now - last_report > 600:
+                        log("alive: measured sample rate %.0f Hz, %d captures" % (rate, n))
+                        last_report = now
+                        if abs(rate - C.RATE) > C.RATE * 0.02:
+                            log("WARNING: rate is %.0f, not %d: TIM6 clock isn't %d Hz" % (rate, C.RATE, CLK))
+                if h["state"] == 2:
+                    n += 1
+                    save(r, h, rate, n)
                 time.sleep(POLL)
-                continue
-            h = hdr(r)
-            now = time.monotonic()
-            if t0 is None:
-                t0, tk0 = now, h["ticks"]
-            elif now - t0 >= 5:
-                rate = (h["ticks"] - tk0) / (now - t0)
-                if now - last_report > 600:
-                    log("alive: measured sample rate %.0f Hz, %d captures" % (rate, n))
-                    last_report = now
-                    if abs(rate - C.RATE) > C.RATE * 0.02:
-                        log("WARNING: rate is %.0f, not %d: TIM6 clock isn't %d Hz" % (rate, C.RATE, CLK))
-            if h["state"] == 2:
-                n += 1
-                save(r, h, rate, n)
-            time.sleep(POLL)
+            except (IOError, OSError, serial.SerialException) as e:
+                log("radio lost (%s); waiting for it to come back" % e)
+                t0 = None
+                last_err = None
+                while not stop:
+                    try:
+                        r.reopen(wait=30)
+                        C.locate(r)
+                        log("radio back; ring %d samples at %#x" % (C.N, C.CAP))
+                        break
+                    except (IOError, OSError, serial.SerialException, SystemExit) as e2:
+                        time.sleep(5)
+                        if str(e2) != last_err and "did not come back" not in str(e2):
+                            log("still unavailable: %s" % e2)
+                            last_err = str(e2)
     finally:
         try:
             if r.peek(C.MODE, 1)[0] == 4:
