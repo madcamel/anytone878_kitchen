@@ -128,6 +128,18 @@ and every burst it catches becomes a reusable test vector.
   retuning), set the squelch so noise alone doesn't open it, and use a channel without 2-tone,
   5-tone or DTMF decoding.
 
+### What the captures show
+- TIM6 clock is 120 MHz: period 12499 gives a measured 9600 Hz.
+- PC0 audio decodes as-is with `afsk1200.py`; the first burst on 144.390 was a digipeated Mic-E packet.
+- Level: DC bias ≈ 86/255 of the 8-bit range (≈ 1.1 V), swing up to ≈ 172 (≈ 2.2 V). A strong
+  packet clipped ~4.5 % of samples at 0 (asymmetric clipping adds 2400 Hz, next to the 2200 Hz
+  space tone). Still unknown: whether the volume knob scales PC0, and how often clipping costs a
+  decode.
+- Dual watch (`radio_settings[0x2D]`, toggled by `key_sub_ch_toggle`, the PF function "Sub Ch
+  Hide") retunes every ~120 ms and resets TIM6 each time: the recorder (and a future demod) needs it
+  off. Calling `key_sub_ch_toggle` over the debug channel from the standby screen works and saves
+  the setting.
+
 ## Plan: MCU APRS receive
 
 1. **Capture test (hardware feasibility):** collect bursts with the recorder above. Check the
