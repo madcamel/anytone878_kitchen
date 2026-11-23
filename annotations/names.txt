@@ -198,6 +198,7 @@
 0800f72a fm_chip_init
 0800f762 fm_set_volume
 080100e8 ui_popup_show
+08010618 key_local_record
 08010f0a ui_key_handler
 08012494 task_p10_keys_ui
 0801250a ui_task_create
@@ -377,6 +378,9 @@
 0806a11c identity_u8
 0806ae3c tx_power_cal_lookup
 0806b0cc tx_power_apply
+0806caf2 record_load_entry
+0806d4ae record_send_busy_check
+0806d5c4 record_send_dmr
 0806e000 crc16_x25
 0806ed9e sig_seq_s14_afsk_start
 0806eee4 sig_seq_s15_afsk_send
