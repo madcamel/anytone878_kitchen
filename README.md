@@ -15,6 +15,9 @@ Here's what it can do out of the box:
 It should be able to build features and customize firmware without requiring you to have
 a background in reverse engineering. The difficult bits have been done.
 
+Mods have their own area of flash and can be independently applied. Included mods:
+- Software APRS decoder. Add APRS RX to 878UV without bluetooth module. Has debug functionality to send packets to PC.
+
 
 **LLM generated text below**
 
