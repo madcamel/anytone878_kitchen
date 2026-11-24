@@ -34,8 +34,10 @@ caps the debug channel at 100 requests/s (≈23 KB/s reading, ≈5 KB/s writing)
 completely while the radio transmits. v2 adds two small hooks (`patches/dbg_fast.c`, in dead ST
 library code at 0x080078EC):
 
-- The USB interrupt wakes the PC-link task as soon as a packet arrives (uC/OS `OSIntEnter` /
-  `OSFlagPost` / `OSIntExit`, as the SysTick handler does), so each request is answered right away.
+- The USB interrupt wakes the PC-link task as soon as a packet arrives, so each request is answered
+  right away. USB runs above the priority level uC/OS protects against, so it must not call the OS
+  itself: it sets a spare interrupt (IRQ 25) pending, and that handler, at a kernel-safe priority,
+  posts the task's flag.
 - Debug commands (`D0`/`D1`/`D2`) are served even while transmitting. Everything else (CPS,
   firmware update, NAND dump) still goes through the stock code and its rules.
 

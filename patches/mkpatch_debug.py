@@ -53,8 +53,10 @@ BINNAME = "D878UV_V4.00_bandunlock_r1_dbg2.bin"
 FAST_SRC = Path(__file__).resolve().parent / "dbg_fast.c"
 FAST_HOLE = (0x080078EC, 0x08007B28)    # FLASH_ProgramOptionByteData..FLASH_UserOptionByteConfig (dead, no refs)
 FAST_DEAD = (0x080078EA, 0x08007B28)
-VEC_USB = 0x08004090                    # vector of USB_LP_CAN1_RX0 (IRQ 20)
+VEC_USB = 0x08004090                    # vector of USB_LP_CAN1_RX0 (IRQ 20, priority 0x10)
 VEC_ORIG = struct.pack("<I", 0x08004BE3)
+VEC_WAKE = 0x080040A4                   # vector of IRQ 25 TIM1_UP/TIM10 (unused: default handler)
+VEC_WAKE_ORIG = struct.pack("<I", 0x08004CAB)
 P3_SITE = 0x080813D4                    # task_p3_usb_pc_link: bl usb_pc_link_step
 P3_ORIG = bytes.fromhex("fff7a9fe")
 
@@ -287,21 +289,36 @@ def test(img, entry):
 
 def test_fast(img, syms, fw, modemu):
     import struct as S
-    # 1) USB IRQ wrapper: OSIntEnter, stock handler, post p3 flag only when a packet is pending, OSIntExit
-    for pending, grp in ((0, 0x20012000), (8, 0x20012000), (8, 0)):
+    # 1) USB IRQ wrapper (priority 0x10): stock handler, then only NVIC writes. It must NEVER call
+    #    uC/OS: USB sits above BASEPRI 0x20, so the OS isn't protected against it (that locked the radio).
+    OS = ("OSIntEnter", "OSIntExit", "OSFlagPost", "OSSemPost", "OSMboxPost", "OS_Sched", "OSTimeTick")
+    for pending in (0, 8):
         e = modemu.Emu(img)
         seq = []
-        e.w32(fw["os_flags_usb_dmr"], grp)
-        e.stub(fw["OSIntEnter"], lambda e: seq.append("enter"))
-        e.stub(fw["OSIntExit"], lambda e: seq.append("exit"))
 
         def usb(e, pending=pending):
             seq.append("usb"); e.w16(fw["usb_rx_pending_len"], pending)
         e.stub(fw["USB_LP_CAN1_RX0_IRQHandler"], usb)
-        e.stub(fw["OSFlagPost"], lambda e: seq.append(("post", e.arg(0), e.arg(1), e.arg(2))))
+        for n in OS:
+            if n in fw:
+                e.stub(fw[n], lambda e, n=n: seq.append(n))
         e.call(syms["dbg_usb_irq"])
-        want = ["enter", "usb"] + ([("post", grp, 0x10, 1)] if pending and grp else []) + ["exit"]
-        assert seq == want, (pending, grp, seq)
+        assert seq == ["usb"], ("OS call from the USB IRQ!", seq)
+        if pending:
+            assert e.r8(0xE000E400 + 25) == 0x30 and e.r32(0xE000E100) & (1 << 25) and e.r32(0xE000E200) & (1 << 25)
+        else:
+            assert e.r32(0xE000E200) == 0, "pended IRQ 25 without a packet"
+    # 1b) IRQ 25 handler (priority 0x30, kernel-aware): enter, post p3 flag, exit; nothing before OSStart
+    for running, grp in ((1, 0x20012000), (0, 0x20012000), (1, 0)):
+        e = modemu.Emu(img)
+        seq = []
+        e.w32(fw["os_flags_usb_dmr"], grp); e.w8(fw["OSRunning"], running)
+        e.stub(fw["OSIntEnter"], lambda e: seq.append("enter"))
+        e.stub(fw["OSIntExit"], lambda e: seq.append("exit"))
+        e.stub(fw["OSFlagPost"], lambda e: seq.append(("post", e.arg(0), e.arg(1), e.arg(2))))
+        e.call(syms["dbg_wake_irq"])
+        want = ["enter", ("post", grp, 0x10, 1), "exit"] if running and grp else []
+        assert seq == want, (running, grp, seq)
     # 2) link step: debug packets served (also during TX), everything else to the stock function
     def run(req, dev_state=3, tx=1):
         e = modemu.Emu(img)
@@ -334,7 +351,7 @@ def test_fast(img, syms, fw, modemu):
         assert log == ["stock"], (why, log)
     e, log = run(peek, dev_state=2)
     assert log == ["stock"], ("USB not configured", log)
-    print("emulation: fast wake (post only when pending), debug served during TX, passthrough OK")
+    print("emulation: USB IRQ makes no OS calls (pends IRQ 25 only with a packet), IRQ 25 posts p3 flag, debug served during TX, passthrough OK")
 
 
 def main():
@@ -371,6 +388,7 @@ def main():
     bad = SIG.unsafe_refs(bytes(img), [FAST_DEAD], exclude=[FAST_DEAD])
     assert not bad, "references into fast hole: %s" % bad[:10]
     assert img[o(VEC_USB):o(VEC_USB) + 4] == VEC_ORIG, "USB vector mismatch"
+    assert img[o(VEC_WAKE):o(VEC_WAKE) + 4] == VEC_WAKE_ORIG, "IRQ 25 vector isn't the default handler"
     assert img[o(P3_SITE):o(P3_SITE) + 4] == P3_ORIG, "p3 call site mismatch"
     with tempfile.TemporaryDirectory(prefix="dbgfast_", dir=hcfg.OUT) as tmp:
         obj = Path(tmp) / "dbg_fast.o"
@@ -381,6 +399,7 @@ def main():
     assert flo + len(blob) <= fhi, "dbg_fast too big: %d" % len(blob)
     img[o(flo):o(flo) + len(blob)] = blob
     img[o(VEC_USB):o(VEC_USB) + 4] = struct.pack("<I", syms["dbg_usb_irq"] | 1)
+    img[o(VEC_WAKE):o(VEC_WAKE) + 4] = struct.pack("<I", syms["dbg_wake_irq"] | 1)
     img[o(P3_SITE):o(P3_SITE) + 4] = asm("bl %#x" % (syms["dbg_link_step"] & ~1), P3_SITE)
     print("dbg_fast @ %#x, %d bytes (%d free); USB vector -> %#x; p3 -> dbg_link_step %#x" % (
         flo, len(blob), fhi - flo - len(blob), syms["dbg_usb_irq"], syms["dbg_link_step"]))

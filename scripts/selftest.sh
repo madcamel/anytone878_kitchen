@@ -25,11 +25,11 @@ build "band-unlock r1 D878UV" 885864f8ca9e109cf2c5802b2ee503d0b4c5d89f2eb3174ab1
 	"$ROOT/out/D878UV_V4.00_bandunlock_r1/D878UV_V4.00_bandunlock_r1.bin" "$PY" "$ROOT/patches/mkpatch_bandunlock.py" uv
 build "band-unlock r1 D878UVII" 76d5b9c87d4621339064730cfe86b03c89e06c9441889644dd537fd7660fcb9a \
 	"$ROOT/out/D878UVII_V4.00_bandunlock_r1/D878UVII_V4.00_bandunlock_r1.bin" "$PY" "$ROOT/patches/mkpatch_bandunlock.py" uvii
-build "debug channel v2 (on r1) D878UV" e1d261a9938f4eb7e7f5c6ac865eee2b17a9ec7de6881d109f70f2e86445fe57 \
+build "debug channel v2 (on r1) D878UV" ff8116361ecf150c06149596151cf339033ef74541cec7a16163f36e07efe3cd \
 	"$ROOT/out/D878UV_V4.00_bandunlock_r1_dbg2/D878UV_V4.00_bandunlock_r1_dbg2.bin" "$PY" "$ROOT/patches/mkpatch_debug.py"
-build "mods: baseline + capture" ed352a35d5d90007b42e2caed17a696fe3bfbf5538ec25e327316290bac886f5 \
+build "mods: baseline + capture" f43eb60052d5e527949910fcb46acb64d6f2880506feda6f8fcf144e4fd6fde7 \
 	"$ROOT/out/D878UV_V4.00_base+capture/D878UV_V4.00_base+capture.bin" "$PY" "$ROOT/patches/modbuild.py" capture
-build "mods: baseline + aprs_rx" e521c8e54f3e7d699ea6e4166c4e93c78a6956602ace23ecac986134b9c61a8c \
+build "mods: baseline + aprs_rx" 395ba7f4e888e97192115c7381c8b9a689aed62402342d3cd38f0ba579591c74 \
 	"$ROOT/out/D878UV_V4.00_base+aprs_rx/D878UV_V4.00_base+aprs_rx.bin" "$PY" "$ROOT/patches/modbuild.py" aprs_rx
 check "modbuild refuses capture+aprs_rx (same TIM6 hook)" sh -c "'$PY' -I '$ROOT/patches/modbuild.py' capture aprs_rx 2>&1 | grep -q 'either/or'"
 

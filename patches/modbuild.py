@@ -48,7 +48,7 @@ BASE = hcfg.BASE
 STOCK = hcfg.fw_path("uv")
 STOCK_SHA = hcfg.MODELS["uv"]["sha256"]["CDD"]
 BASELINE = hcfg.OUT / "D878UV_V4.00_bandunlock_r1_dbg2/D878UV_V4.00_bandunlock_r1_dbg2.bin"
-BASELINE_SHA = "e1d261a9938f4eb7e7f5c6ac865eee2b17a9ec7de6881d109f70f2e86445fe57"
+BASELINE_SHA = "ff8116361ecf150c06149596151cf339033ef74541cec7a16163f36e07efe3cd"
 STEM = "D878UV_V4.00_20250725"
 MODS = HERE / "mods"
 

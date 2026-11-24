@@ -4,9 +4,13 @@
  * wake, so the debug channel tops out at 100 requests/s; and usb_pc_link_step ignores the link while
  * the radio transmits (rf_tx_active), so debug commands stop during TX.
  *
- * dbg_usb_irq   replaces the USB_LP_CAN1_RX0 vector: OSIntEnter, stock handler, and if an OUT
- *               packet is pending, post the p3 flag (0x10), then OSIntExit, so p3 runs as soon as
- *               the interrupt returns instead of at the next 10 ms tick.
+ * dbg_usb_irq   replaces the USB_LP_CAN1_RX0 vector: stock handler, then, if an OUT packet is
+ *               pending, set IRQ 25 (TIM1_UP/TIM10, unused) pending. It calls NO uC/OS function:
+ *               USB runs at priority 0x10, above BASEPRI 0x20 used by OS critical sections, so the
+ *               OS isn't protected against it (calling OSFlagPost/OSIntExit here locked the radio).
+ * dbg_wake_irq  IRQ 25 handler at priority 0x30 (masked by critical sections, so kernel-safe):
+ *               OSIntEnter, post the p3 flag (0x10), OSIntExit, so p3 runs as soon as the
+ *               interrupts return instead of at the next 10 ms tick.
  * dbg_link_step replaces task_p3's call to usb_pc_link_step: an exact debug command (D0/D1/D2,
  *               same format rules as dbg_hook) is served directly, also while transmitting, with
  *               the stock re-arm and power-save keep-awake; everything else goes to the stock
@@ -24,6 +28,7 @@ extern volatile uint16_t pc_rx_len;
 extern volatile uint8_t  pc_buf[];
 extern uint8_t usb_cdc_handle[];
 extern void *volatile os_flags_usb_dmr;
+extern volatile uint8_t  OSRunning;
 
 void USB_LP_CAN1_RX0_IRQHandler(void);
 void OSIntEnter(void);
@@ -35,15 +40,29 @@ void DBG_HOOK(void);                        /* dbg_hook (mkpatch_debug.py), hand
 
 #define OS_FLAG_SET 1u
 #define P3_FLAG     0x10u
+#define WAKE_IRQ    25u                       /* TIM1_UP / TIM10: never enabled by the firmware */
+#define WAKE_PRIO   0x30u                     /* >= BASEPRI 0x20: masked by OS critical sections */
+#define NVIC_ISER0  (*(volatile uint32_t *)0xE000E100)
+#define NVIC_ISPR0  (*(volatile uint32_t *)0xE000E200)
+#define NVIC_IPR(n) (*(volatile uint8_t *)(0xE000E400 + (n)))
 
-void dbg_usb_irq(void)
+void dbg_usb_irq(void)                        /* priority 0x10: no uC/OS calls allowed here */
 {
-    OSIntEnter();
     USB_LP_CAN1_RX0_IRQHandler();
-    if (usb_rx_pending_len && os_flags_usb_dmr) {
-        uint8_t err;
-        OSFlagPost(os_flags_usb_dmr, P3_FLAG, OS_FLAG_SET, &err);
+    if (usb_rx_pending_len) {
+        NVIC_IPR(WAKE_IRQ) = WAKE_PRIO;
+        NVIC_ISER0 = 1u << WAKE_IRQ;
+        NVIC_ISPR0 = 1u << WAKE_IRQ;
     }
+}
+
+void dbg_wake_irq(void)                       /* priority 0x30: kernel-aware */
+{
+    if (OSRunning != 1 || !os_flags_usb_dmr)
+        return;
+    OSIntEnter();
+    uint8_t err;
+    OSFlagPost(os_flags_usb_dmr, P3_FLAG, OS_FLAG_SET, &err);
     OSIntExit();
 }
 
