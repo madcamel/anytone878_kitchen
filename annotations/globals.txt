@@ -10,7 +10,7 @@
 # --- UI
 20000951 screen_id              u8
 200001B0 key_code               u8
-20007FF8 radio_settings         u8[256]  # +5 lang, +0x10..0x14 PF key funcs, +0x2D sub channel (dual watch) on
+20007FF8 radio_settings         u8[256]  # mirror of codeplug 0x02500000 (anytone-flash-tools map): +3 auto shutdown, +5 lang, +0x0B power save (0 off, 1 = 1:1, 2 = 2:1), +0x10..0x14 PF key funcs, +0x2D sub channel (dual watch) on
 200003DC cur_chan_rec           ptr    # channel record the menus edit
 200003E4 rf_chan_rec            ptr    # channel record the RF code uses (+8 &3 type, +0x39 freq corr)
 200003C0 rx_freq_10hz           u32

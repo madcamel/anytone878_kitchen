@@ -197,6 +197,10 @@
 0800f710 fm_write_regs02_05
 0800f72a fm_chip_init
 0800f762 fm_set_volume
+0800fcf0 clk_restore_pll_120mhz
+0800fd44 clk_sysclk_to_hse_pll_off
+0800fe28 power_off_enter_stop
+0800ff1a power_off_if_requested
 080100e8 ui_popup_show
 08010618 key_local_record
 08010f0a ui_key_handler
@@ -233,6 +237,7 @@
 08029ee0 tmr_100ms_housekeep_cb
 08029ef8 housekeeping_task_create
 08029f46 ui_mbox_wait
+0802a0a6 powersave_wake_input
 0802aa84 ptt_press
 0802b04c standby_digit_key
 0802b7c2 lcd_set_window
@@ -364,6 +369,8 @@
 0806174c rf_cmd_task_create
 08061772 rf_cmd_post
 08061a5a dualwatch_signal_check
+08062a18 powersave_sleep
+08062d42 powersave_step
 08066a08 evt_dequeue
 08066a38 evt_enqueue
 08066ae8 dmr_bb_cmd_dequeue
