@@ -98,5 +98,5 @@
 # --- unsorted (tools/glob.py)
 200001B1 rf_tx_active           u8     # set at TX start (rf_cmd_apply_hi, rf_tx_aprs_afsk, PC quiesce); TIM6 ISR idles while set
 200001B4 key_fn_table           ptr[112] # PF key functions by PF number = index in the PF name list (descriptor 0x080A6758, 57 names); handlers named key_pf_*; 47 BHT On/Off is a no-op without the BT board
-2000A88E afsk_pwm_buf           u16[128]
-2000A98E afsk_bit_samples       u16[64]
+2000A88E afsk_pwm_buf           u16[128] # TIM4 CCR4 DMA double buffer (DMA1 ch7, HT/TC refill); 64 samples = 1 bit at 76.8 kHz
+2000A98E afsk_bit_samples       u16[64] # one synthesised bit: PWM duty values from the sine table at 0x0809F150
