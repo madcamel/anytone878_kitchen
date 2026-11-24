@@ -416,7 +416,10 @@
 0805e8ce at1846_init_regs
 0805eab0 at1846_profile_analog
 0805ec4c at1846_load_mode_profile
+0805f17e rf_rx_off
 0805f504 at1846_set_freq
+0805f5b0 at1846_rx_restart
+0805f68e rf_rx_restart
 0805f8fa at1846_vhf_frontend_set
 0805f932 at1846_uhf_frontend_set
 0805fa0c at1846_set_squelch_regs
@@ -451,6 +454,7 @@
 08068972 dmr_bb_task_create
 080691f4 evt_forward_to_p11
 0806a11c identity_u8
+0806a9fa factory_test_mode_enter
 0806ae3c tx_power_cal_lookup
 0806b0cc tx_power_apply
 0806caf2 record_load_entry
@@ -520,6 +524,10 @@
 08078620 aprs_rx_frame_process
 080796b0 aprs_info_index_read16
 080796ea aprs_info_store_scan
+0807a608 at1846_sdio_input
+0807a62a at1846_sdio_output
+0807a642 at1846_bit_delay
+0807a652 at1846_shift_in_word
 0807a6ac at1846_shift_out_byte
 0807a6fc at1846_write_reg
 0807a73a at1846_read_reg
