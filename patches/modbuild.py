@@ -4,7 +4,7 @@
     .venv/bin/python -I patches/modbuild.py MOD [MOD...]     -> out/D878UV_V4.00_base+MOD+.../
     .venv/bin/python -I patches/modbuild.py --list
 
-Baseline: out/D878UV_V4.00_bandunlock_r1_dbg1 (patches/mkpatch_bandunlock.py uv, then
+Baseline: out/D878UV_V4.00_bandunlock_r1_dbg2 (patches/mkpatch_bandunlock.py uv, then
 patches/mkpatch_debug.py); those two stay in place in dead library code and are always present.
 
 Mods live in patches/mods/<name>/: mod.py (NAME, VERSION, RAM bytes, SOURCES, HOOKS, test()) and C
@@ -47,8 +47,8 @@ import modemu  # noqa: E402
 BASE = hcfg.BASE
 STOCK = hcfg.fw_path("uv")
 STOCK_SHA = hcfg.MODELS["uv"]["sha256"]["CDD"]
-BASELINE = hcfg.OUT / "D878UV_V4.00_bandunlock_r1_dbg1/D878UV_V4.00_bandunlock_r1_dbg1.bin"
-BASELINE_SHA = "257c2af64a8d4ae9dfbae8580fefd3c5566f59f407bc9859376084df69893376"
+BASELINE = hcfg.OUT / "D878UV_V4.00_bandunlock_r1_dbg2/D878UV_V4.00_bandunlock_r1_dbg2.bin"
+BASELINE_SHA = "e1d261a9938f4eb7e7f5c6ac865eee2b17a9ec7de6881d109f70f2e86445fe57"
 STEM = "D878UV_V4.00_20250725"
 MODS = HERE / "mods"
 

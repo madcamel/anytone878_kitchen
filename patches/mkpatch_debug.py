@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Add a RAM peek/poke/call debug channel to the D878UV V4.00 PC link (on top of band-unlock r1).
 
+v2 ("fast", patches/dbg_fast.c, linked into the dead FLASH option-byte block 0x080078EC): the USB
+interrupt wakes the PC-link task as soon as a packet arrives (instead of every 10 ms), and debug
+commands are also served while the radio transmits. See docs/debug_channel.md.
+
     .venv/bin/python -I patches/mkpatch_debug.py   (after patches/mkpatch_bandunlock.py uv)
 
 Hook: usb_pc_link_step's only `bl pc_cmd_dispatch` (0x08081186) becomes `bl dbg_hook`.
@@ -41,9 +45,18 @@ STOCK = hcfg.fw_path("uv")
 STOCK_SHA = hcfg.MODELS["uv"]["sha256"]["CDD"]
 IN = hcfg.OUT / "D878UV_V4.00_bandunlock_r1/D878UV_V4.00_bandunlock_r1.bin"
 IN_SHA = "885864f8ca9e109cf2c5802b2ee503d0b4c5d89f2eb3174ab1c8b3535b8512d2"
-OUT = hcfg.OUT / "D878UV_V4.00_bandunlock_r1_dbg1"
+OUT = hcfg.OUT / "D878UV_V4.00_bandunlock_r1_dbg2"
 STEM = "D878UV_V4.00_20250725"
-BINNAME = "D878UV_V4.00_bandunlock_r1_dbg1.bin"
+BINNAME = "D878UV_V4.00_bandunlock_r1_dbg2.bin"
+
+# v2: fast wake + serve during TX (patches/dbg_fast.c)
+FAST_SRC = Path(__file__).resolve().parent / "dbg_fast.c"
+FAST_HOLE = (0x080078EC, 0x08007B28)    # FLASH_ProgramOptionByteData..FLASH_UserOptionByteConfig (dead, no refs)
+FAST_DEAD = (0x080078EA, 0x08007B28)
+VEC_USB = 0x08004090                    # vector of USB_LP_CAN1_RX0 (IRQ 20)
+VEC_ORIG = struct.pack("<I", 0x08004BE3)
+P3_SITE = 0x080813D4                    # task_p3_usb_pc_link: bl usb_pc_link_step
+P3_ORIG = bytes.fromhex("fff7a9fe")
 
 DEAD = (0x0800659E, 0x08006730)  # TIM_ICInit + TIM_PWMIConfig (no callers)
 FALSE_POS = (0x0800644E, 0x080064EA)
@@ -272,6 +285,58 @@ def test(img, entry):
     print("emulation: peek/poke/call/passthrough OK")
 
 
+def test_fast(img, syms, fw, modemu):
+    import struct as S
+    # 1) USB IRQ wrapper: OSIntEnter, stock handler, post p3 flag only when a packet is pending, OSIntExit
+    for pending, grp in ((0, 0x20012000), (8, 0x20012000), (8, 0)):
+        e = modemu.Emu(img)
+        seq = []
+        e.w32(fw["os_flags_usb_dmr"], grp)
+        e.stub(fw["OSIntEnter"], lambda e: seq.append("enter"))
+        e.stub(fw["OSIntExit"], lambda e: seq.append("exit"))
+
+        def usb(e, pending=pending):
+            seq.append("usb"); e.w16(fw["usb_rx_pending_len"], pending)
+        e.stub(fw["USB_LP_CAN1_RX0_IRQHandler"], usb)
+        e.stub(fw["OSFlagPost"], lambda e: seq.append(("post", e.arg(0), e.arg(1), e.arg(2))))
+        e.call(syms["dbg_usb_irq"])
+        want = ["enter", "usb"] + ([("post", grp, 0x10, 1)] if pending and grp else []) + ["exit"]
+        assert seq == want, (pending, grp, seq)
+    # 2) link step: debug packets served (also during TX), everything else to the stock function
+    def run(req, dev_state=3, tx=1):
+        e = modemu.Emu(img)
+        log = []
+        def arm(e):
+            log.append(("arm", e.arg(0)))
+            e.w8(fw["usb_rx_done"], 0)
+        e.stub(fw["usb_cdc_rx_arm"], arm)
+        e.stub(fw["usb_pc_link_step"], lambda e: log.append("stock"))
+        e.stub(REPLY, lambda e: log.append(("reply", e.arg(0))))
+        e.stub(DISPATCH, lambda e: log.append("dispatch"))
+        e.write(0x20010000, bytes(range(0x40, 0x80)))
+        e.write(BUF, bytes(req) + bytes(64))
+        e.w16(fw["usb_rx_pending_len"], len(req)); e.w8(fw["usb_rx_done"], 1)
+        e.w8(fw["usb_dev_state"], dev_state); e.w8(fw["rf_tx_active"], tx)
+        e.w8(fw["powersave_active"], 0)
+        e.call(syms["dbg_link_step"])
+        return e, log
+    peek = bytes([0xD0, 0x64, 4, 0]) + S.pack("<I", 0x20010004)
+    e, log = run(peek)
+    assert log == [("arm", fw["usb_cdc_handle"]), ("reply", 9)], log
+    assert e.read(BUF, 9)[:8] == bytes([0xD0, 4, 0, 0]) + bytes(range(0x44, 0x48))
+    assert e.r16(fw["usb_rx_pending_len"]) == 0 and e.r16(fw["pc_rx_len"]) == 8 and e.r16(fw["powersave_hold"]) == 500
+    e, log = run(bytes([0xD1, 0x64, 2, 0]) + S.pack("<I", 0x20010000) + b"\xAA\xBB")
+    assert log[-1] == ("reply", 2) and e.read(0x20010000, 2) == b"\xAA\xBB", log
+    for req, why in ((b"PROGRAM", "stock command"), (peek + b"x", "wrong length"),
+                     (bytes([0xD1, 0x64, 4, 0]) + S.pack("<I", 0x20010000) + b"ab", "short poke"),
+                     (bytes([0xD0, 0x65, 4, 0]) + S.pack("<I", 0x20010000), "bad magic")):
+        e, log = run(req)
+        assert log == ["stock"], (why, log)
+    e, log = run(peek, dev_state=2)
+    assert log == ["stock"], ("USB not configured", log)
+    print("emulation: fast wake (post only when pending), debug served during TX, passthrough OK")
+
+
 def main():
     stock = STOCK.read_bytes()
     img = bytearray(IN.read_bytes())
@@ -298,6 +363,28 @@ def main():
         print("hook: %#x %s %s" % (i.address, i.mnemonic, i.op_str))
 
     test(bytes(img), lo)
+
+    # ---- v2: fast wake + serve during TX
+    import modbuild, elflink, modemu, subprocess, tempfile
+    flo, fhi = FAST_HOLE
+    assert img[o(flo):o(fhi)] == stock[o(flo):o(fhi)], "fast hole already modified"
+    bad = SIG.unsafe_refs(bytes(img), [FAST_DEAD], exclude=[FAST_DEAD])
+    assert not bad, "references into fast hole: %s" % bad[:10]
+    assert img[o(VEC_USB):o(VEC_USB) + 4] == VEC_ORIG, "USB vector mismatch"
+    assert img[o(P3_SITE):o(P3_SITE) + 4] == P3_ORIG, "p3 call site mismatch"
+    with tempfile.TemporaryDirectory(prefix="dbgfast_", dir=hcfg.OUT) as tmp:
+        obj = Path(tmp) / "dbg_fast.o"
+        subprocess.run(["clang", *modbuild.CFLAGS, "-c", str(FAST_SRC), "-o", str(obj)], check=True)
+        ext = modbuild.firmware_symbols()
+        ext["DBG_HOOK"] = (lo, True)
+        blob, syms = elflink.link(obj.read_bytes(), flo, ext)
+    assert flo + len(blob) <= fhi, "dbg_fast too big: %d" % len(blob)
+    img[o(flo):o(flo) + len(blob)] = blob
+    img[o(VEC_USB):o(VEC_USB) + 4] = struct.pack("<I", syms["dbg_usb_irq"] | 1)
+    img[o(P3_SITE):o(P3_SITE) + 4] = asm("bl %#x" % (syms["dbg_link_step"] & ~1), P3_SITE)
+    print("dbg_fast @ %#x, %d bytes (%d free); USB vector -> %#x; p3 -> dbg_link_step %#x" % (
+        flo, len(blob), fhi - flo - len(blob), syms["dbg_usb_irq"], syms["dbg_link_step"]))
+    test_fast(bytes(img), syms, {k: v[0] for k, v in ext.items()}, modemu)
     assert len(img) == len(stock), "length changed"
     diff = sum(1 for a, b in zip(img, stock) if a != b)
 

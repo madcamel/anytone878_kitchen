@@ -27,11 +27,25 @@ mode are untouched, so a stock image can always be flashed back.
 builder proves no code or data references the patched range. The image length is unchanged, so the
 stock `.CDI`/`.spi` files still apply.
 
+## v2: faster, and alive during transmit
+
+The stock PC-link task only wakes every 10 ms and handles one 64-byte USB packet per wake, which
+caps the debug channel at 100 requests/s (≈23 KB/s reading, ≈5 KB/s writing). It also ignores USB
+completely while the radio transmits. v2 adds two small hooks (`patches/dbg_fast.c`, in dead ST
+library code at 0x080078EC):
+
+- The USB interrupt wakes the PC-link task as soon as a packet arrives (uC/OS `OSIntEnter` /
+  `OSFlagPost` / `OSIntExit`, as the SysTick handler does), so each request is answered right away.
+- Debug commands (`D0`/`D1`/`D2`) are served even while transmitting. Everything else (CPS,
+  firmware update, NAND dump) still goes through the stock code and its rules.
+
+A request is still one USB packet, so a single poke carries at most 56 bytes.
+
 ## Build and flash
 
 ```sh
 patches/mkpatch_bandunlock.py uv     # base image (out/D878UV_V4.00_bandunlock_r1/)
-patches/mkpatch_debug.py             # -> out/D878UV_V4.00_bandunlock_r1_dbg1/  (sha256 257c2af6…)
+patches/mkpatch_debug.py             # -> out/D878UV_V4.00_bandunlock_r1_dbg2/  (sha256 e1d261a9…)
 ```
 
 The builder refuses anything but the expected input bytes, checks the hook site and the patch
@@ -41,7 +55,7 @@ pass-through cases) before writing.
 Flash it: power the radio on holding **PTT + PF3** (red LED blinks), then
 
 ```sh
-tools/radio.py flash out/D878UV_V4.00_bandunlock_r1_dbg1/D878UV_V4.00_20250725.CDD --yes
+tools/radio.py flash out/D878UV_V4.00_bandunlock_r1_dbg2/D878UV_V4.00_20250725.CDD --yes
 ```
 
 The radio installs it and restarts by itself. No "Initialize radio" step is needed; settings and
