@@ -17,6 +17,7 @@
 080048c2 TIM7_IRQHandler
 080049c6 TIM5_IRQHandler
 08004a12 TIM6_IRQHandler
+08004a56 afsk_synth_bit_64
 08004b26 DMA1_Channel7_IRQHandler
 08004be2 USB_LP_CAN1_RX0_IRQHandler
 08004c00 USBWakeUp_IRQHandler
@@ -416,6 +417,7 @@
 080616f8 task_p7_rf_cmd
 0806174c rf_cmd_task_create
 08061772 rf_cmd_post
+080618a6 at1846_tx_data_deviation
 08061a5a dualwatch_signal_check
 08062a18 powersave_sleep
 08062d42 powersave_step
@@ -436,13 +438,20 @@
 0806caf2 record_load_entry
 0806d4ae record_send_busy_check
 0806d5c4 record_send_dmr
+0806dfba afsk_pwm_tim4_ch4_start
 0806e000 crc16_x25
 0806ed9e sig_seq_s14_afsk_start
+0806ee32 afsk_dma7_stop
+0806ee3e afsk_dma7_start
+0806ee54 afsk_state_reset
+0806ee7e afsk_send_frame_dma
 0806eee4 sig_seq_s15_afsk_send
 0806f036 sig_seq_s16_afsk_end
 0806f76e popup_sending_digi_aprs
 0807025e popup_sending_ana_aprs
 0807027c aprs_ana_send
+080705fe afsk_bit_advance
+0807062e afsk_next_bit
 08070f40 bt_uart4_init
 080710d2 uart4_send_byte
 08071126 bt_send_frame
@@ -500,6 +509,7 @@
 0807b0b6 spiflash_read_span
 0807b238 apc_dac_write
 0807b344 frontend_tune_pwm_write
+0807b39e gpio_pb9_af_pwm_out
 0807b44e tone_timer_enable
 0807b4f0 tim6_set_rate
 0807b512 tim6_init
