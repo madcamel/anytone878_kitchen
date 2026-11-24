@@ -176,13 +176,96 @@ The key codes below come from how `ui_key_handler` uses them:
 | 0x0D | Menu / OK (confirmed on hardware; the first key after idle only wakes the backlight) |
 | 0x0E | Exit / Back |
 | 0x0F / 0x10 | Up / Down (confirmed on hardware) |
-| 0x11 / 0x12 | channel/zone step (in standby) |
-| 0x13–0x17 | programmable keys; each looks up its assigned function at settings +0x13, +0x14, +0x10, +0x11, +0x12 |
+| 0x11 / 0x12 | channel knob (rotary encoder): `EXTI9_5_IRQHandler` (PC8 edge, compared with PC9) sets `encoder_pending_key11/12`, `encoder_poll` (p14) posts the key; channel/zone step in standby |
+| 0x13 / 0x14 | **P1 / P2** (front). Function = settings +0x13 / +0x14, long press +0x44 / +0x45 |
+| 0x15 / 0x16 / 0x17 | **PF1 / PF2 / PF3** (side). Function = settings +0x10 / +0x11 / +0x12, long press +0x41 / +0x42 / +0x43 |
 | 0x18 / 0x19 | PTT press / release |
 | 0x1B, 0x1C, 0x1D | long-press variants |
 
 `ui_key_handler` is one ~1100-line function: a stack of global gates (mode locks, key lock,
 call states) followed by `switch(key)`, each case an if-chain over the screen ID.
+
+## 7a. Programmable-key functions (`key_fn_table` 0x200001B4)
+
+The five programmable keys (PF1–PF3, P1, P2; key codes above) each store a **function ID** per
+press type: short at settings +0x10…+0x14, long at +0x41…+0x45 (codeplug 0x02500010 / 0x02500041;
+long-press time +0x46). The ID is the index into the radio's own key-function list (menu descriptor
+0x080A6758, 57 labels; the CPS writes the same numbers) and into **`key_fn_table`**, a 112-entry
+function-pointer table in **RAM** (initialised `.data`, so it's visible only in `out/sram_init.bin`
+from `tools/raminit.py`, not as a flash table).
+
+Dispatch (`ui_key_handler`, outside menus/pickers 0x0D–0x0F; `pf_key_function_id` maps key → ID):
+- short press (`key_press_state` 1, `key_long_press` 0): `key_fn_table[id]()`
+- long press (`key_press_state` 2 / `key_long_press` set): `key_fn_table[long_id]()`
+- **momentary IDs** (`pf_function_is_momentary`: 9 Sub PTT, 12 Alarm, 18 Monitor, 46 TBST Send):
+  press → `key_fn_table[id]`, **release** (`key_press_state` 0) → `key_fn_table[57 + id]`
+- entries 57–111 that aren't release handlers, and ID 55 "Predicting", are `key_pf_nop` (it only
+  clears 0x20000066, the "key handled" state).
+
+Because the table is in RAM, a mod can add or replace a key function by storing one pointer; no code
+hook is needed for the dispatch itself. ID 55 (Predicting) is the natural slot to take over: it's in
+the radio's menu, does nothing in V4.00, and has no release handler.
+
+| ID | menu label | handler | release handler [57+ID] | notes |
+|---|---|---|---|---|
+| 0 (0x00) | Off | `key_pf_off` |  |  |
+| 1 (0x01) | Volt | `key_pf_volt` |  |  |
+| 2 (0x02) | Tx Power | `key_pf_tx_power` |  |  |
+| 3 (0x03) | TalkAround | `key_pf_talkaround` |  |  |
+| 4 (0x04) | Reverse | `key_pf_reverse` |  |  |
+| 5 (0x05) | Digi Encrypt | `key_pf_digi_encrypt` |  |  |
+| 6 (0x06) | Call | `key_pf_call` |  |  |
+| 7 (0x07) | VOX | `key_pf_vox` |  |  |
+| 8 (0x08) | VFO/MR | `key_pf_vfo_mr` |  |  |
+| 9 (0x09) | Sub Ptt | `key_pf_sub_ptt` | `key_pf_sub_ptt_release` | momentary |
+| 10 (0x0A) | Scan | `key_pf_scan` |  |  |
+| 11 (0x0B) | FM Radio | `key_pf_fm_radio` |  |  |
+| 12 (0x0C) | Alarm | `key_pf_alarm` | `key_pf_nop` | momentary |
+| 13 (0x0D) | Record Switch | `key_pf_record_switch` |  |  |
+| 14 (0x0E) | Record | `key_local_record` |  |  |
+| 15 (0x0F) | SMS | `key_pf_sms` |  |  |
+| 16 (0x10) | Dial | `key_pf_dial` |  |  |
+| 17 (0x11) | GPS Info | `key_pf_gps_info` |  | not in reald's CPS list |
+| 18 (0x12) | Monitor | `key_pf_monitor` | `key_pf_monitor_release` | momentary |
+| 19 (0x13) | Main CH Switch | `key_pf_main_ch_switch` |  |  |
+| 20 (0x14) | Hot Key 1 | `key_pf_hot_key` |  |  |
+| 21 (0x15) | Hot Key 2 | `key_pf_hot_key` |  |  |
+| 22 (0x16) | Hot Key 3 | `key_pf_hot_key` |  |  |
+| 23 (0x17) | Hot Key 4 | `key_pf_hot_key` |  |  |
+| 24 (0x18) | Hot Key 5 | `key_pf_hot_key` |  |  |
+| 25 (0x19) | Hot Key 6 | `key_pf_hot_key` |  |  |
+| 26 (0x1A) | Work Alone | `key_pf_work_alone` |  |  |
+| 27 (0x1B) | Nuisance delete | `key_pf_nuisance_delete` |  |  |
+| 28 (0x1C) | Digi Monitor | `key_pf_digi_monitor` |  |  |
+| 29 (0x1D) | Sub Ch Hide | `key_sub_ch_toggle` |  |  |
+| 30 (0x1E) | Prior Zone | `key_pf_prior_zone` |  |  |
+| 31 (0x1F) | Program Scan | `key_pf_program_scan` |  |  |
+| 32 (0x20) | Enhance Sound | `key_pf_enhance_sound` |  |  |
+| 33 (0x21) | LastCall Reply | `key_pf_lastcall_reply` |  |  |
+| 34 (0x22) | Switch ChType | `key_pf_switch_chtype` |  |  |
+| 35 (0x23) | Ranging | `key_pf_ranging` |  | not in reald's CPS list |
+| 36 (0x24) | Roaming | `key_pf_roaming` |  |  |
+| 37 (0x25) | CH Ranging | `key_pf_ch_ranging` |  | not in reald's CPS list |
+| 38 (0x26) | Max VOL Set | `key_pf_max_vol_set` |  |  |
+| 39 (0x27) | Slot Set | `key_pf_slot_set` |  |  |
+| 40 (0x28) | Aprs Type | `key_pf_aprs_type` |  | not in reald's CPS list |
+| 41 (0x29) | Zone Select | `key_pf_zone_select` |  |  |
+| 42 (0x2A) | Roaming Set | `key_pf_roaming_set` |  |  |
+| 43 (0x2B) | APRS Set | `key_pf_aprs_set` |  | not in reald's CPS list |
+| 44 (0x2C) | FixTime Mute | `key_pf_fixtime_mute` |  |  |
+| 45 (0x2D) | CTC/DCS Set | `key_pf_ctc_dcs_set` |  |  |
+| 46 (0x2E) | TBST Send | `key_pf_tbst_send` | `key_pf_tbst_send_release` | momentary |
+| 47 (0x2F) | BHT On/Off | `key_bt_toggle` |  |  |
+| 48 (0x30) | Gps On/Off | `key_pf_gps_on_off` |  |  |
+| 49 (0x31) | Ch.Name | `key_pf_ch_name` |  |  |
+| 50 (0x32) | CDT Scan | `key_pf_cdt_scan` |  |  |
+| 51 (0x33) | Aprs Send | `key_pf_aprs_send` |  | radio menu only (newer than reald's CPS list) |
+| 52 (0x34) | Ana Aprs Info | `key_aprs_info_open` |  | radio menu only (newer than reald's CPS list) |
+| 53 (0x35) | GPS Roaming | `key_pf_gps_roaming` |  | radio menu only (newer than reald's CPS list) |
+| 54 (0x36) | DIM Shut | `key_pf_dim_shut` |  | radio menu only (newer than reald's CPS list) |
+| 55 (0x37) | Predicting | `key_pf_nop` |  | radio menu only (newer than reald's CPS list), **no-op in V4.00** |
+| 56 (0x38) | Sq Level | `key_pf_sq_level` |  | radio menu only (newer than reald's CPS list) |
+
 
 ## 8. Adding an "AM" option: where it plugs in
 

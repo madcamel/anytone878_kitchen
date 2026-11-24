@@ -202,10 +202,12 @@
 0800fd44 clk_sysclk_to_hse_pll_off
 0800fe28 power_off_enter_stop
 0800ff1a power_off_if_requested
-080100e0 key_pf_predicting
+080100e0 key_pf_nop
 080100e8 ui_popup_show
+080103a6 pf_function_is_momentary
 080105d4 key_pf_dial
 08010618 key_local_record
+08010a7c pf_key_function_id
 08010f0a ui_key_handler
 08012494 task_p10_keys_ui
 0801250a ui_task_create
@@ -217,12 +219,14 @@
 08012974 key_pf_reverse
 08012a38 key_pf_tx_power
 08012b66 key_pf_sub_ptt
+08012dea key_pf_sub_ptt_release
 08012e56 key_pf_cdt_scan
 08012ee8 key_pf_aprs_send
 0801312a key_pf_scan
 080131be key_pf_record_switch
 08013258 key_pf_vox
 080132d6 key_pf_monitor
+08013344 key_pf_monitor_release
 080133c4 key_pf_hot_key
 08013404 key_pf_nuisance_delete
 0801357a key_pf_digi_monitor
@@ -243,6 +247,7 @@
 0801444e key_pf_main_ch_switch
 08014538 key_pf_fm_radio
 080145b6 key_pf_tbst_send
+080146de key_pf_tbst_send_release
 0801472a key_pf_ch_name
 0801479c key_bt_toggle
 08014844 key_pf_gps_on_off
@@ -289,6 +294,8 @@
 08027bd0 rf_chip_variant_check
 08028270 pc_factory_block_write
 08028c32 ptt_release
+08028f50 key_post_wait
+0802913e keypad_matrix_read
 0802975e keypad_scan
 08029cac task_p14_housekeeping
 08029dac task_p14_housekeeping_loop
@@ -438,6 +445,7 @@
 08061fa0 rf_vhf_frontend_set
 08061fd0 rf_frontends_set
 08062000 rf_uhf_frontend_set
+08062994 ui_activity_wake
 08062a18 powersave_sleep
 08062d42 powersave_step
 08062ed2 rf_freq_select_active
@@ -552,6 +560,7 @@
 0807bdd2 battery_monitor_step
 0807c2c0 EXTI0_IRQHandler
 0807c352 EXTI9_5_IRQHandler
+0807c3d6 encoder_poll
 0807c522 gps_uart_send
 0807c570 task_p5_gps
 0807c57a gps_task_create

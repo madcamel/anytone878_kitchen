@@ -9,6 +9,13 @@
 20000988 disp_mbox              ptr    # OS_EVENT* p12 mailbox
 # --- UI
 20000951 screen_id              u8
+2000098C lcd_bus_sem            ptr    # OS_EVENT*: LCD and keypad matrix share PE7-14; ui_render and keypad_scan both pend it
+20000BE8 ui_event_sem           ptr    # OS_EVENT*: serialises task_p10 key handling and task_p11 event handling
+20000CBE powersave_idle_countdown u16  # reloaded by ui_activity_wake (table 0x080AE93C[radio_settings[0x37]]), counted down by tmr_10ms_soft_timers; powersave_step sleeps at 0
+20001071 encoder_pending_key11  u8     # set by EXTI9_5_IRQHandler (PC8 edge, PC8!=PC9); encoder_poll posts key 0x11
+20001072 encoder_pending_key12  u8     # set by EXTI9_5_IRQHandler (PC8 edge, PC8==PC9); encoder_poll posts key 0x12
+20000900 key_press_state        u8     # keypad_scan: 1 pressed, 2 long press reached, 0 released; ui_key_handler picks short/long/release handlers from it
+20000904 key_long_press         u8     # set with key_press_state on long press; long press runs key_fn_table[long-key setting]
 200001B0 key_code               u8
 20007FF8 radio_settings         u8[256]  # mirror of codeplug 0x02500000 (anytone-flash-tools map): +3 auto shutdown, +5 lang, +0x0B power save (0 off, 1 = 1:1, 2 = 2:1), +0x10..0x14 PF key funcs, +0x15/+0x16 VF/MR A/B (1 = VFO), +0x2C main side (0 A, 1 B), +0x2D sub channel (dual watch) on
 200003DC cur_chan_rec           ptr    # channel record the menus edit
@@ -99,7 +106,7 @@
 2000240A audio_zc_periods       u8[32]
 # --- unsorted (tools/glob.py)
 200001B1 rf_tx_active           u8     # set at TX start (rf_cmd_apply_hi, rf_tx_aprs_afsk, PC quiesce); TIM6 ISR idles while set
-200001B4 key_fn_table           ptr[112] # PF key functions by PF number = index in the PF name list (descriptor 0x080A6758, 57 names); handlers named key_pf_*; 47 BHT On/Off is a no-op without the BT board
+200001B4 key_fn_table           ptr[112] # PF/P key function dispatch (RAM .data), docs/ui.md §7a: [0..56] = function ID (= PF name list index, descriptor 0x080A6758) handlers key_pf_*; [57+id] = key-release handler for momentary IDs (pf_function_is_momentary: 9/12/18/46); unused -> key_pf_nop. 47 BHT On/Off is a no-op without the BT board
 2000A88E afsk_pwm_buf           u16[128] # TIM4 CCR4 DMA double buffer (DMA1 ch7, HT/TC refill); 64 samples = 1 bit at 76.8 kHz
 2000A98E afsk_bit_samples       u16[64] # one synthesised bit: PWM duty values from the sine table at 0x0809F150
 20001354 usb_rx_pending_len     u16    # length of the OUT packet in pc_buf, set by usb_cdc_out_done_cb (USB IRQ), cleared by usb_pc_link_step when taken
