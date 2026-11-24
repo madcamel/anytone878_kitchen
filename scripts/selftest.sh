@@ -31,6 +31,8 @@ build "mods: baseline + capture" 84edf634835ba1380fcc2cc874fd10153c130768615358e
 	"$ROOT/out/D878UV_V4.00_base+capture/D878UV_V4.00_base+capture.bin" "$PY" "$ROOT/patches/modbuild.py" capture
 build "mods: baseline + aprs_rx" 13cc5c67164f29e97924e86d92a8ab73b10cdaa70f281a3c988b10d3a720b75d \
 	"$ROOT/out/D878UV_V4.00_base+aprs_rx/D878UV_V4.00_base+aprs_rx.bin" "$PY" "$ROOT/patches/modbuild.py" aprs_rx
+build "mods: baseline + aprs_rx + scope" beba08d79215ea19cf144db3e73d611b69652b5e056f7828408a25c951e7e42d \
+	"$ROOT/out/D878UV_V4.00_base+aprs_rx+scope/D878UV_V4.00_base+aprs_rx+scope.bin" "$PY" "$ROOT/patches/modbuild.py" aprs_rx scope
 check "modbuild refuses capture+aprs_rx (same TIM6 hook)" sh -c "'$PY' -I '$ROOT/patches/modbuild.py' capture aprs_rx 2>&1 | grep -q 'either/or'"
 
 echo "offline tools"

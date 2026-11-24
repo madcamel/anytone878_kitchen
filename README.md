@@ -13,11 +13,29 @@ baseline debug firmware. This firmware has a band-unlocked region 1 and contains
 read/write/jump primitives on the PC/USB interface that allow the model to work with the radio.
 
 Included mod packages:
-- Software APRS decoder. Add APRS RX to 878UV without bluetooth module
+- Software APRS decoder. Add APRS RX to any 878UV, no bluetooth module required.
+- Waterfall spectrum scope with tuning ability. See instructions below.
 
 Fun toys that run on your PC and drive the radio over the USB cable (baseline debug firmware, nothing else to flash):
 - `tools/scope.py` turns the radio into a poor man's spectrum analyser. Waterfall right in your terminal, full UHF in a few seconds a sweep. It's no SDR, but it's free.
-- `tools/txaudio.py` transmits a WAV file or text-to-speech straight from your PC. No audio cable. Mind your license.
+- `tools/txaudio.py` transmits a WAV file or text-to-speech straight from your PC using only the data cable.
+
+### Waterfall scope
+
+Flash an image with the `scope` mod (`patches/modbuild.py aprs_rx scope`, or just `scope`). Then give it a key:
+Menu → Settings → Radio Set → Key Func → pick any PF1/PF2/PF3/P1/P2, short or long press → **Predicting**.
+"Predicting" does nothing on V4.00, so the mod hijacks it. Yes, it still says Predicting in the menu.
+Stock firmware hides it from the key lists; the mod puts it back, second from the bottom (just above Sq Level),
+for short and long presses alike. Do this on the radio itself: the CPS key list stops at CDT Scan and doesn't offer it.
+
+From the standby screen press that key. You get a waterfall of whichever band you're on (VHF, the 220 band or UHF).
+- Knob moves the cursor
+- Up/Down change the waterfall speed (x1 full resolution .. x8 coarse but fast), shown bottom right
+- P2 zooms in 8x around the cursor. At the closest zoom, P2 again tunes the VFO there and drops you out. If you were in channel mode it switches you to VFO first.
+- P1 zooms out, and exits from the full band. Exit also exits.
+- PTT kicks you out of the scope and transmits as normal on your usual frequency.
+
+Leave without tuning and the radio is exactly as you left it. A row takes about 1.7 s at the default x2 speed and about 3.4 s at x1 full resolution; this receiver can only measure one 25 kHz channel at a time, so it's never going to be an SDR.
 
 
 ## LLM generated text below

@@ -20,7 +20,7 @@ every 25 kHz channel: ~3.5 min/row). Faster averaging (--avg 1/0, ~16 ms/step) r
 Each step is verified against the synthesizer readback (VCO/6 in 1/4424.6 kHz units), because a write
 occasionally collides with the firmware's own RF code on the shared bus.
 While scanning, dual watch and power save are paused (power save sleeps the front ends, which shows
-as a uniform raised floor), and the RX front end for the scanned band is switched on (chip reg 0x1F,
+as a uniform raised floor), and the RX front end for the scanned band is switched on and its tracking filter tuned per step (chip reg 0x1F,
 at1846_reg1f_shadow; stock only enables the band of the active VFO). On exit (also Ctrl-C) the
 averaging, power save, dual watch and the VFO are restored through the stock retune path, and the
 chip is reset (OVERVIEW recipe) if it wedged.
@@ -43,6 +43,8 @@ SIDES_RELOAD, CHAN_APPLY, RF_CMD_POST, APP_EVENT_POST = 0x080630FE, 0x08016112, 
 RF_TX_ACTIVE, SCREEN_ID, RADIO_SETTINGS = 0x200001B1, 0x20000951, 0x20007FF8
 DUAL_WATCH = RADIO_SETTINGS + 0x2D
 POWER_SAVE = RADIO_SETTINGS + 0x0B
+TRACK_CCR = 0x40000434          # TIM3 CCR1 = RX tracking-filter tune (frontend_tune_pwm_write)
+CAL = dict(vhf=(0x20009FF4, 39), m220=(0x2000A042, 6), uhf=(0x20009FD6, 13))   # rf_tune_cal_* (u16)
 FRONTEND_SHADOW = 0x20000C0C   # at1846_reg1f_shadow: chip GPIOs, [9:8] VHF, [1:0] UHF front end, 11 = on
 
 LOCK_RANGES = ((129.84, 178.17, 6), (194.75, 288.73, 4), (389.48, 577.6, 2))   # MHz, divider
@@ -84,6 +86,25 @@ class Scope:
         self.wr(0x05, 0x8763)                    # normal reference mode (readback scale assumes it)
         self.band = None
 
+    def track(self, f):
+        """Tracking filter for f MHz: stock rf_frontend_tune_from_tables maths (band-unlock edge clamps).
+        Left at the VFO's setting, readings away from it are skewed by up to ~25 dB."""
+        if not hasattr(self, "cal"):
+            self.cal = {k: struct.unpack("<%dH" % n, self.r.peek(a, 2 * n)) for k, (a, n) in CAL.items()}
+        ip = lambda t, i, fr: (t[i] + ((((t[i + 1] - t[i]) & 0xFFFF) * fr) & 0xFFFF) // 10) & 0xFFFF
+        f10 = int(round(f * 1e5))
+        if f10 < 31000000:
+            if f10 <= 17400000:
+                g = max(f10, 13600000) - 13600000; i = g // 100000; t = self.cal["vhf"]
+                v = ip(t, i, g // 10000 % 10) if i < 38 else t[38]
+            else:
+                g = max(f10, 22000000) - 22000000; i = g // 100000; t = self.cal["m220"]
+                v = ip(t, i, g // 10000 % 10) if i < 5 else t[5]
+        else:
+            g = max(f10, 40000000) - 40000000; i = g // 1000000; t = self.cal["uhf"]
+            v = ip(t, i, g // 100000 % 10) if i < 12 else t[12]
+        self.r.poke(TRACK_CCR, struct.pack("<I", v), any_addr=True)
+
     def frontend(self, f):
         """Enable the RX front end for f (stock: at1846_vhf_frontend_set / at1846_uhf_frontend_set), disable the other."""
         band = "uhf" if f >= 300 else "vhf"
@@ -114,6 +135,7 @@ class Scope:
         if d is None:
             return None
         self.frontend(f)
+        self.track(f)
         for attempt in range(2):
             w = int(round(f * 16000))
             self.wr(0x29, w >> 16)

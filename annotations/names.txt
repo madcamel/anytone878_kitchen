@@ -291,6 +291,8 @@
 0802234a nand_save_rec_split
 0802238a vfo_factory_defaults
 08023882 chan_rec_save_current
+08026594 keyfn_predicting_fixup
+08026668 settings_sanitize
 08027bd0 rf_chip_variant_check
 08028270 pc_factory_block_write
 08028c32 ptt_release
@@ -361,6 +363,8 @@
 0804bed6 menu_L4_ev4_nop
 0804bed8 menu_L4_enter
 0804bf38 menu_L4_back
+0804c0a4 keyfn_id_to_menu
+0804c170 radioset_build_options
 0804c8b0 menu_L5_show
 080502f8 menu_L5_up
 0805036a menu_L5_down
@@ -368,6 +372,8 @@
 080503de menu_L5_ev4_nop
 080503e0 menu_L5_enter
 0805047a menu_L5_back
+080507f2 keyfn_menu_to_id
+0805088c radioset_commit
 08050ec6 menu_L6_show
 08053bea menu_L6_up
 08053c9c menu_L6_down
@@ -566,6 +572,7 @@
 0807c57a gps_task_create
 0807c5a4 USART2_IRQHandler
 0807c770 RTC_IRQHandler
+0807cce4 backlight_on
 0807d14a pc_write_codeplug_block
 0807f52e pc_factory_select_bank
 0807f53e pc_be32

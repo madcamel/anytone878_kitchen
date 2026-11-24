@@ -176,7 +176,7 @@ The key codes below come from how `ui_key_handler` uses them:
 | 0x0D | Menu / OK (confirmed on hardware; the first key after idle only wakes the backlight) |
 | 0x0E | Exit / Back |
 | 0x0F / 0x10 | Up / Down (confirmed on hardware) |
-| 0x11 / 0x12 | channel knob (rotary encoder): `EXTI9_5_IRQHandler` (PC8 edge, compared with PC9) sets `encoder_pending_key11/12`, `encoder_poll` (p14) posts the key; channel/zone step in standby |
+| 0x11 / 0x12 | channel knob (rotary encoder): `EXTI9_5_IRQHandler` (PC8 edge, compared with PC9) sets `encoder_pending_key11/12`, `encoder_poll` (p14) posts the key. **0x11 = clockwise** (VFO up), 0x12 = counter-clockwise (VFO down); channel/zone step in standby |
 | 0x13 / 0x14 | **P1 / P2** (front). Function = settings +0x13 / +0x14, long press +0x44 / +0x45 |
 | 0x15 / 0x16 / 0x17 | **PF1 / PF2 / PF3** (side). Function = settings +0x10 / +0x11 / +0x12, long press +0x41 / +0x42 / +0x43 |
 | 0x18 / 0x19 | PTT press / release |
@@ -203,8 +203,14 @@ Dispatch (`ui_key_handler`, outside menus/pickers 0x0D–0x0F; `pf_key_function_
   clears 0x20000066, the "key handled" state).
 
 Because the table is in RAM, a mod can add or replace a key function by storing one pointer; no code
-hook is needed for the dispatch itself. ID 55 (Predicting) is the natural slot to take over: it's in
-the radio's menu, does nothing in V4.00, and has no release handler.
+hook is needed for the dispatch itself.
+
+Menu pickers (`radioset_build_options` / `radioset_commit`) don't show IDs 1:1: `keyfn_menu_to_id` /
+`keyfn_id_to_menu` skip IDs per key (P1/P2: 6, 9; long presses: the momentary 9, 12, 18, 46), 52
+without the APRS board, and **always 55 "Predicting"**; `settings_sanitize` → `keyfn_predicting_fixup`
+also clears a key's long press when its short press is 55 and resets a long 55 to Off. So stock offers
+no way to pick 55. The `scope` mod un-hides it (4 byte patches) and uses it as its entry: it does
+nothing in V4.00 and has no release handler.
 
 | ID | menu label | handler | release handler [57+ID] | notes |
 |---|---|---|---|---|

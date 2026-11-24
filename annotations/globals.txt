@@ -2,6 +2,8 @@
 # Applied by SetupGlobals.java. Sources: ui.md, pc_link.md, OVERVIEW.md.
 # --- OS / tasks
 2000130A OSRunning              u8
+20013930 OSTCBPrioTbl           ptr[64] # uC/OS-II: TCB per priority (OSTaskCreate reserves with 1); 0 = priority free
+200012FD OSIntNesting           u8
 20000DE8 os_flags_usb_dmr       ptr    # OS_FLAG_GRP*: 0x10 wakes p3, 0x08 wakes p8 (posted 0x18 every 10 ms)
 20000944 key_mbox               ptr    # OS_EVENT* p10 mailbox
 2000093C key_done_sem           ptr    # posted by p10 after each key
@@ -9,6 +11,7 @@
 20000988 disp_mbox              ptr    # OS_EVENT* p12 mailbox
 # --- UI
 20000951 screen_id              u8
+200010D4 pc_mode_active         u8     # 1 = PC programming mode: SysTick_Handler stops calling OSTimeTick (OS frozen), delay_ms busy-waits; set by radio_quiesce_for_pc, which p3 enters whenever screen_id > 0x22 and then loops in usb_pc_link_step until screen 0x21 (no way back but a reset)
 2000098C lcd_bus_sem            ptr    # OS_EVENT*: LCD and keypad matrix share PE7-14; ui_render and keypad_scan both pend it
 20000BE8 ui_event_sem           ptr    # OS_EVENT*: serialises task_p10 key handling and task_p11 event handling
 20000CBE powersave_idle_countdown u16  # reloaded by ui_activity_wake (table 0x080AE93C[radio_settings[0x37]]), counted down by tmr_10ms_soft_timers; powersave_step sleeps at 0
@@ -69,6 +72,9 @@
 200011C0 sct_evt_mask           u32
 # --- RF
 20000DE0 rf_is_1846n            u8
+20009FD6 rf_tune_cal_uhf        u16[13] # RX tracking-filter PWM (TIM3 CCR1) at 400..520 MHz, 10 MHz steps; rf_frontend_tune_from_tables interpolates per 1 MHz
+20009FF4 rf_tune_cal_vhf        u16[39] # same, 136..174 MHz in 1 MHz steps (interpolated per 0.1 MHz)
+2000A042 rf_tune_cal_220        u16[6]  # same, 220..225 MHz in 1 MHz steps
 20000C0C at1846_reg1f_shadow    u16    # copy of AT1846S reg 0x1F (chip GPIO pins): [9:8] VHF front end, [1:0] UHF front end (11 on, 10 off); at1846_*_frontend_set
 20000C10 at1846_bus_sem         ptr    # OS_EVENT* semaphore guarding the AT1846S bus (rf_*_frontend_set wrappers); debug-channel calls bypass it
 20000DE1 rf_variant_tag         u8[5]

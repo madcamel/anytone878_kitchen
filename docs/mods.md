@@ -60,3 +60,4 @@ Mods don't call each other or share RAM. If two mods need the same hook site the
 |---|---|---|
 | `aprs_rx` | analog APRS receive on the MCU (`docs/aprs.md`) | either/or with `capture` (TIM6 dispatch) |
 | `capture` | squelch-triggered RX audio recorder for APRS development (`tools/aprscap.py`) | either/or with `aprs_rx` |
+| `scope` | on-radio spectrum waterfall of the current band (VHF / mid / UHF); open with key function 55 "Predicting" on any PF/P key, knob = cursor, P2 = zoom in (finest level tunes the VFO there; from channel mode it switches to VFO first), P1 = zoom out / exit, Exit exits, PTT exits and transmits. Without a tune the radio is left exactly as it was (`patches/mods/scope/hwtest.py` diffs it on hardware) | combines with either; hooks p10 key/PTT calls and p12 `ui_render` |
