@@ -62,6 +62,8 @@
 200011C0 sct_evt_mask           u32
 # --- RF
 20000DE0 rf_is_1846n            u8
+20000C0C at1846_reg1f_shadow    u16    # copy of AT1846S reg 0x1F (chip GPIO pins): [9:8] VHF front end, [1:0] UHF front end (11 on, 10 off); at1846_*_frontend_set
+20000C10 at1846_bus_sem         ptr    # OS_EVENT* semaphore guarding the AT1846S bus (rf_*_frontend_set wrappers); debug-channel calls bypass it
 20000DE1 rf_variant_tag         u8[5]
 # --- BT (UART4)
 2000AC04 bt_rxbuf               u8[200]  # UART4 line buffer, index bt_rx_len (<200)

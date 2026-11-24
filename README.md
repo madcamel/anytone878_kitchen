@@ -15,6 +15,10 @@ read/write/jump primitives on the PC/USB interface that allow the model to work 
 Included mod packages:
 - Software APRS decoder. Add APRS RX to 878UV without bluetooth module
 
+Fun toys that run on your PC and drive the radio over the USB cable (baseline debug firmware, nothing else to flash):
+- `tools/scope.py` turns the radio into a poor man's spectrum analyser. Waterfall right in your terminal, full UHF in a few seconds a sweep. It's no SDR, but it's free.
+- `tools/txaudio.py` transmits a WAV file or text-to-speech straight from your PC. No audio cable. Mind your license.
+
 
 ## LLM generated text below
 

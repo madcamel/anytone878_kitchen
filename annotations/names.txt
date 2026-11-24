@@ -417,10 +417,13 @@
 0805eab0 at1846_profile_analog
 0805ec4c at1846_load_mode_profile
 0805f504 at1846_set_freq
+0805f8fa at1846_vhf_frontend_set
+0805f932 at1846_uhf_frontend_set
 0805fa0c at1846_set_squelch_regs
 0805faaa rf_squelch_cal_apply
 0805fd5e rf_frontend_tune_from_tables
 08060284 rf_cmd_apply_lo
+08060b74 at1846_frontends_set
 08060c56 rf_tx_aprs_afsk
 08060e58 rf_cmd_apply_hi
 080616d6 rf_cmd_mbox_wait
@@ -429,6 +432,9 @@
 08061772 rf_cmd_post
 080618a6 at1846_tx_data_deviation
 08061a5a dualwatch_signal_check
+08061fa0 rf_vhf_frontend_set
+08061fd0 rf_frontends_set
+08062000 rf_uhf_frontend_set
 08062a18 powersave_sleep
 08062d42 powersave_step
 08062ed2 rf_freq_select_active
