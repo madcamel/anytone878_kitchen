@@ -21,15 +21,15 @@ build() {  # name, expected sha256, output, command...
 	n=$1; want=$2; f=$3; shift 3
 	if "$@" >/dev/null 2>&1 && [ "$(sha "$f")" = "$want" ]; then ok "$n"; else bad "$n (got $(sha "$f" | cut -c1-12))"; fi
 }
-build "band-unlock r1 D878UV" 885864f8ca9e109cf2c5802b2ee503d0b4c5d89f2eb3174ab1c8b3535b8512d2 \
+build "band-unlock r1 D878UV" 88bd6a332dfb14ecebc1d480ede44a91a4270a81cbd51121165ecfedfaa3a4d9 \
 	"$ROOT/out/D878UV_V4.00_bandunlock_r1/D878UV_V4.00_bandunlock_r1.bin" "$PY" "$ROOT/patches/mkpatch_bandunlock.py" uv
-build "band-unlock r1 D878UVII" 76d5b9c87d4621339064730cfe86b03c89e06c9441889644dd537fd7660fcb9a \
+build "band-unlock r1 D878UVII" 5ef9415eb00660fd236e8da3bf3bd01b5719f43b33b8503a1a25ddd8e4cbb301 \
 	"$ROOT/out/D878UVII_V4.00_bandunlock_r1/D878UVII_V4.00_bandunlock_r1.bin" "$PY" "$ROOT/patches/mkpatch_bandunlock.py" uvii
-build "debug channel v2 (on r1) D878UV" ff8116361ecf150c06149596151cf339033ef74541cec7a16163f36e07efe3cd \
+build "debug channel v2 (on r1) D878UV" 52ad22053fbfa64615bada2bbf5242b5e9630430049aab1244cb2538e2a033c8 \
 	"$ROOT/out/D878UV_V4.00_bandunlock_r1_dbg2/D878UV_V4.00_bandunlock_r1_dbg2.bin" "$PY" "$ROOT/patches/mkpatch_debug.py"
-build "mods: baseline + capture" f43eb60052d5e527949910fcb46acb64d6f2880506feda6f8fcf144e4fd6fde7 \
+build "mods: baseline + capture" 84edf634835ba1380fcc2cc874fd10153c130768615358e304dfb59b0ab9a58c \
 	"$ROOT/out/D878UV_V4.00_base+capture/D878UV_V4.00_base+capture.bin" "$PY" "$ROOT/patches/modbuild.py" capture
-build "mods: baseline + aprs_rx" 395ba7f4e888e97192115c7381c8b9a689aed62402342d3cd38f0ba579591c74 \
+build "mods: baseline + aprs_rx" 13cc5c67164f29e97924e86d92a8ab73b10cdaa70f281a3c988b10d3a720b75d \
 	"$ROOT/out/D878UV_V4.00_base+aprs_rx/D878UV_V4.00_base+aprs_rx.bin" "$PY" "$ROOT/patches/modbuild.py" aprs_rx
 check "modbuild refuses capture+aprs_rx (same TIM6 hook)" sh -c "'$PY' -I '$ROOT/patches/modbuild.py' capture aprs_rx 2>&1 | grep -q 'either/or'"
 

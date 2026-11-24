@@ -51,7 +51,7 @@ running normally (dual watch, APRS RX mod).
 
 ```sh
 patches/mkpatch_bandunlock.py uv     # base image (out/D878UV_V4.00_bandunlock_r1/)
-patches/mkpatch_debug.py             # -> out/D878UV_V4.00_bandunlock_r1_dbg2/  (sha256 e1d261a9…)
+patches/mkpatch_debug.py             # -> out/D878UV_V4.00_bandunlock_r1_dbg2/  (sha256 52ad2205…)
 ```
 
 The builder refuses anything but the expected input bytes, checks the hook site and the patch

@@ -50,9 +50,11 @@ REGION = 1
 MHZ = 100_000                       # firmware frequency unit is 10 Hz
 # Band classification elsewhere is by the BCD MHz byte: <200 VHF, 200-309 "220", >=310 UHF;
 # at1846_set_freq splits VHF/UHF at 300. Keep the three ranges inside those buckets.
-WIDE = {"vhf": (5_000_000, 19_999_500),     # 50.000 - 199.995 MHz
-        "m220": (20_000_000, 29_999_500),   # 200.000 - 299.995 MHz
-        "uhf": (31_000_000, 59_999_500)}    # 310.000 - 599.995 MHz
+# Limits = measured AT1846S PLL lock range (docs/patch.md "Measured synthesizer limits"): one VCO
+# 779-1155 MHz, /6 /4 /2. Margin: VCO >= 785 (floor 779) and <= 1145 (cal code pins at 511 above).
+WIDE = {"vhf": (13_100_000, 17_800_000),    # 131.000 - 178.000 MHz (locks 129.84 - 178.17; /6->/4 switch at 178.18)
+        "m220": (20_000_000, 28_600_000),   # 200.000 - 286.000 MHz (locks 194.75 - 288.73; <200 is the VHF bucket)
+        "uhf": (39_300_000, 57_200_000)}    # 393.000 - 572.000 MHz (locks 389.48 - ~577.6)
 TABLES = {  # (lo, hi) table addresses, 18 x u32 each
     "rx": {"uhf": (0x080A0C04, 0x080A0C4C), "vhf": (0x080A0D24, 0x080A0D6C), "m220": (0x080A0E44, 0x080A0E8C)},
     "tx": {"uhf": (0x080A0C94, 0x080A0CDC), "vhf": (0x080A0DB4, 0x080A0DFC), "m220": (0x080A0ED4, 0x080A0F1C)},

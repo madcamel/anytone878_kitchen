@@ -14,11 +14,11 @@ Patched firmware (D878UV): `out/D878UV_V4.00_bandunlock_r1/`
 | | SHA-256 |
 |---|---|
 | stock `D878UV_V4.00_20250725.CDD` | `aae150dc3ff7f64c5c1f3a64abc7d91a59438635d7cb946e7aec68011dad4b55` |
-| patched | `885864f8ca9e109cf2c5802b2ee503d0b4c5d89f2eb3174ab1c8b3535b8512d2` |
+| patched | `88bd6a332dfb14ecebc1d480ede44a91a4270a81cbd51121165ecfedfaa3a4d9` |
 
 Rebuild: `.venv/bin/python patches/mkpatch_bandunlock.py` (`scripts/setup_venv.sh` creates `.venv`). The script refuses to run on anything but the stock image, asserts every original byte it replaces, and emulates every stub before writing.
 
-**Untested on hardware.** Select region 1 in the secret menu after flashing.
+Select region 1 in the secret menu after flashing. The patch mechanism (tables + calibration clamps) runs on a real D878UV. The limits below come from measuring the radio's own synthesizer.
 
 ## Result
 
@@ -26,11 +26,27 @@ Region 1, both the RX and the TX plan:
 
 | Band | Stock | Patched |
 |---|---|---|
-| VHF | 136.000 – 174.000 | **50.000 – 199.995** |
-| "220" | 220.000 – 225.000 | **200.000 – 299.995** |
-| UHF | 400.000 – 480.000 | **310.000 – 599.995** |
+| VHF | 136.000 – 174.000 | **131.000 – 178.000** |
+| "220" | 220.000 – 225.000 | **200.000 – 286.000** |
+| UHF | 400.000 – 480.000 | **393.000 – 572.000** |
 
-The bands are bounded the way they are because the firmware sorts frequencies into bands in two ways. It uses the first BCD byte of the frequency (<0x20 → VHF, 0x20–0x30 → "220", ≥0x31 → UHF ≥310 MHz). `at1846_set_freq` also splits VHF/UHF at 300 MHz. Keeping each range inside its bucket means every band-dependent branch still takes the right path. The documented AT1846S ranges are 134–174 / 200–260 / 400–520 MHz. Anything beyond that is allowed but may simply not lock or receive.
+These are the frequencies where the AT1846S synthesizer actually locks, with a safety margin (see below). Outside them the chip mutes RF, so there is nothing to hear, and the patch no longer offers them. The firmware also sorts frequencies into bands by the first BCD byte (<0x20 → VHF, 0x20–0x30 → "220", ≥0x31 → UHF), and `at1846_set_freq` splits VHF/UHF at 300 MHz. All three ranges sit inside their buckets, so every band-dependent branch still takes the right path.
+
+## Measured synthesizer limits
+
+Measured on a D878UV through the debug channel. For each frequency the radio was retuned through the stock RF path (`rf_cmd_post(1)`, with the region clamp bypassed). The point counted as locked only if the PLL lock flag (AT1846S `0x0D[15]`) was set **and** the synthesizer readback (`0x29/0x2A`) matched the requested frequency. At the handful of frequencies where `at1846_set_freq` switches reg 05 to a spur-avoidance reference mode (`8543`/`8643`, e.g. 144, 159, 410, 455, 476–482 MHz) the readback scale changes by ×1.4 / ×1.167, so the lock flag decides there. Edges were bisected to 10 kHz, and every MHz inside each band was checked for holes (none).
+
+The AT1846S has **one VCO, about 779–1155 MHz, divided by 6, 4 or 2**. The chip chooses the divider itself from the frequency, and no register makes it use another one (brute-forced; `0x0F[7:6]` only reports the choice). So there is no ÷8 for 100–130 MHz and no ÷1 for 700–900 MHz.
+
+| Band | Divider | Locks | Low edge set by | High edge set by | Patched |
+|---|---|---|---|---|---|
+| VHF | ÷6 | 129.84 – 178.17 | VCO floor (779) | chip switches to ÷4 at 178.18 | 131 – 178 |
+| "220" | ÷4 | 194.75 – 288.73 | VCO floor (779) | VCO ceiling (1155) | 200 – 286 |
+| UHF | ÷2 | 389.48 – ~577.6 | VCO floor (779) | VCO ceiling (1155) | 393 – 572 |
+
+- **Gaps:** 178.18–194.74 MHz (÷4 can't reach that low) and 288.74–389.47 MHz cannot be received at all.
+- **Margin:** the patched limits keep the VCO at 785 MHz or above (floor 779) and at 1145 MHz or below. Above about 1145 the VCO calibration code (`0x13[8:0]`) is pinned at its maximum of 511 and lock hangs on the varactor alone. The 220 edges already flicker by ±50 kHz on the bench, and the VCO drifts with temperature. The VHF top is a digital divider switch, so it only gets a small margin. 194.75–199.99 locks, but it falls in the firmware's VHF bucket, which already ends at 178, so it is left out.
+- **Locking is not the same as receiving well.** The RX front end and harmonic filters are built for 136–174 / 400–480. Expect sensitivity to fall off towards the edges, especially in the "220" range and above 480.
 
 TX is unlocked over the same ranges on purpose: transmitting only where you're licensed is your call. Outside 136–174 / 400–480 the PA and harmonic filters are out of their design range.
 
@@ -125,16 +141,16 @@ Before patching, every halfword in both ranges was checked with Ghidra's xrefs: 
 - The application has no self-checksum; only `SystemInit` references 0x08004000, to set VTOR. The `.CDI`/`.spi` contain no checksum. Whether the bootloader verifies anything is unknown, because it isn't in the update file.
 
 ## Not verified / caveats
-- **Hardware behaviour.** It hasn't been flashed. Whether the AT1846S synthesizer locks below its documented 134 MHz, or above 520 MHz, can only be found by trying.
-- **AM is not added.** Airband will be heard as FM: an AM carrier with audio comes out as distorted or no audio. This patch only makes tuning there possible. Nothing in the firmware or the RDA1846 guide shows an AM mode.
-- **The UI may still refuse some entries.** The VFO keypad entry or channel editing may have their own digit rules, for example for a leading 0 at 50 MHz. The PC programming software also enforces its own ranges, so out-of-band channels may have to be entered on the radio.
+- **Limits measured on one radio.** The VCO range may vary a little between units and with temperature. The margin is meant to absorb that, but a radio running near an edge in the cold has not been tested.
+- **AM is not added.** Only 131–136 MHz of the airband is reachable, and it is heard as FM: an AM carrier with audio comes out as distorted or no audio. Nothing in the firmware or the RDA1846 guide shows an AM mode.
+- **The UI may still refuse some entries.** The VFO keypad entry or channel editing may have their own digit rules, The PC programming software also enforces its own ranges, so out-of-band channels may have to be entered on the radio.
 - **Calibration outside the bands is the edge value, not real calibration.** Expect reduced sensitivity, imperfect squelch, and off-nominal TX power far from the stock bands.
 - **Recovery** if the radio misbehaves: reflash the stock `.CDD` from `firmware/` the same way (`tools/radio.py flash firmware/D878UV_V4.00_20250725.CDD --yes` in PTT+PF3 update mode). The bootloader sits in its own protected 16 KB below 0x08004000.
 
 ## D878UVII port
 
 The UVII V4.00 (2025-07-25) image is the same codebase: 81 % of 16-byte chunks are shared and it's 64 bytes longer. Nothing was re-reversed. `patches/bandunlock_sigs.py` locates every patch point by signature, and the builder refuses to write unless:
-- **The finder reproduces the reference.** On the D878UV image it must find exactly the 14 known sites and 12 tables, and the D878UV rebuild must stay byte-identical (`885864f8…`).
+- **The finder reproduces the reference.** On the D878UV image it must find exactly the 14 known sites and 12 tables, and the D878UV rebuild must stay byte-identical (`88bd6a33…`).
 - **The UVII sites have the same shape**: the same 9 + 5 sites, in the same order, with identical registers and base/step constants. In the UVII they've moved by +0x0C to +0x38.
 - **The tables are found as one block.** Tables with unique contents give a single consistent offset (+0x38), and every table, including the RX/TX 220 tables that look identical, must carry the reference contents at that offset. The region-name list is identical.
 - **The holes are unchanged and unreferenced.** The ST library region is byte-identical at the same addresses in both images. A capstone sweep that decodes at every halfword finds no branch, literal load or data word pointing into the holes, and no branch landing mid-site. On the D878UV image this sweep agrees with Ghidra's xrefs.
@@ -143,7 +159,7 @@ The UVII V4.00 (2025-07-25) image is the same codebase: 81 % of 16-byte chunks a
 | | UVII SHA-256 |
 |---|---|
 | stock `D878UVII_V4.00_20250725.CDD` | `8f840cfcfc1bb9acab65429ced211481eeb80079725ec46cf225afce071afeeb` |
-| patched | `76d5b9c87d4621339064730cfe86b03c89e06c9441889644dd537fd7660fcb9a` |
+| patched | `5ef9415eb00660fd236e8da3bf3bd01b5719f43b33b8503a1a25ddd8e4cbb301` |
 
 UVII addresses: table sites 0x0805FB22, 0x0805FB34, 0x0805FDC6, 0x0805FED4, 0x0805FF3A, 0x0806AECA, 0x0806AFD8, 0x0806B15C, 0x0806B2E6. DMR sites 0x080832A2, 0x08083318, 0x08083426, 0x080834A2, 0x08083514. RX tables UHF 0x080A0C3C/0x080A0C84, VHF 0x080A0D5C/0x080A0DA4, 220 0x080A0E7C/0x080A0EC4. TX tables UHF 0x080A0CCC/0x080A0D14, VHF 0x080A0DEC/0x080A0E34, 220 0x080A0F0C/0x080A0F54. The stubs sit at the same addresses as on the D878UV. 565 bytes changed, and the length is unchanged (0xE3640, matching the stock `.CDI`).
 
@@ -151,5 +167,7 @@ What the signature port does **not** prove: that the UVII has no *additional* ba
 
 ## Suggested first test
 1. Flash, set region 1 in the secret menu, then confirm stock VHF/UHF channels still receive and transmit normally into a dummy load.
-2. VFO to a strong local airband frequency (ATIS/tower), wide bandwidth, squelch open: listen for the carrier and distorted audio.
-3. Step 136 → 130 → 125 → 118 and note where reception falls off. That's the synthesizer/front-end limit.
+2. Check that the VFO accepts the new edges (131.000, 178.000, 200.000, 286.000, 393.000, 572.000) and clamps anything outside them.
+3. Listen near each edge (e.g. 131–136 airband, 420–430 MHz) to see how far the front end's sensitivity holds up. Locking is already proven; reception quality isn't.
+
+To re-measure the synthesizer on a radio running the debug baseline, see OVERVIEW.md (AT1846S lock flag, readback, dual-watch trap, and the chip reset recipe).
