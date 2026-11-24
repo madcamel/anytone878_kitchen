@@ -97,4 +97,4 @@
 2000240A audio_zc_periods       u8[32]
 # --- unsorted (tools/glob.py)
 200001B1 rf_tx_active           u8     # set at TX start (rf_cmd_apply_hi, rf_tx_aprs_afsk, PC quiesce); TIM6 ISR idles while set
-200001B4 key_fn_table           ptr[112] # PF/side-key functions, index = function number in the PF list (080a6758); 29 = Sub Ch (dual watch) toggle
+200001B4 key_fn_table           ptr[112] # PF key functions by PF number = index in the PF name list (descriptor 0x080A6758, 57 names); handlers named key_pf_*; 47 BHT On/Off is a no-op without the BT board
