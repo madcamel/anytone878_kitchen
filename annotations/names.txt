@@ -258,7 +258,11 @@
 08014eca key_pf_fixtime_mute
 08014fa6 key_pf_roaming_set
 0801500a key_pf_sms
+08016112 chan_apply
+080166b8 chan_rec_freq_10hz
 080166f6 freq_clamp_to_region
+08016a00 freq_digits_to_10hz
+08016ce0 freq_10hz_to_bcd
 080173a4 chanset_vis_to_field
 0801768a chanset_build_options
 0801881a key_pf_vfo_mr
@@ -271,12 +275,17 @@
 0801cb26 gps_task_step
 0801cfa0 nmea_rx_char
 0801d2a0 gps_rx_process
+0801e9ba vfo_freq_apply
+0801e9ce vfo_freq_digit_entry
 080203b6 tmr_10ms_soft_timers
 08020a1c soft_timer_create
 08020f02 lcd_bus_put_byte
 08020f20 lcd_write_cmd
 08020fa4 lcd_write_data
 08020ff4 __aeabi_errno_addr
+0802234a nand_save_rec_split
+0802238a vfo_factory_defaults
+08023882 chan_rec_save_current
 08027bd0 rf_chip_variant_check
 08028270 pc_factory_block_write
 08028c32 ptt_release
@@ -287,6 +296,7 @@
 08029ef8 housekeeping_task_create
 08029f46 ui_mbox_wait
 0802a0a6 powersave_wake_input
+0802aa5c freq_entry_screen_exit
 0802aa84 ptt_press
 0802b04c standby_digit_key
 0802b7c2 lcd_set_window
@@ -421,6 +431,8 @@
 08061a5a dualwatch_signal_check
 08062a18 powersave_sleep
 08062d42 powersave_step
+08062ed2 rf_freq_select_active
+080630fe sides_reload_freqs
 08066a08 evt_dequeue
 08066a38 evt_enqueue
 08066ae8 dmr_bb_cmd_dequeue
@@ -506,6 +518,7 @@
 0807a6fc at1846_write_reg
 0807a73a at1846_read_reg
 0807a964 spiflash_detect_id
+0807ae48 nand_write
 0807b0b6 spiflash_read_span
 0807b238 apc_dac_write
 0807b344 frontend_tune_pwm_write

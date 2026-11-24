@@ -10,7 +10,7 @@
 # --- UI
 20000951 screen_id              u8
 200001B0 key_code               u8
-20007FF8 radio_settings         u8[256]  # mirror of codeplug 0x02500000 (anytone-flash-tools map): +3 auto shutdown, +5 lang, +0x0B power save (0 off, 1 = 1:1, 2 = 2:1), +0x10..0x14 PF key funcs, +0x2D sub channel (dual watch) on
+20007FF8 radio_settings         u8[256]  # mirror of codeplug 0x02500000 (anytone-flash-tools map): +3 auto shutdown, +5 lang, +0x0B power save (0 off, 1 = 1:1, 2 = 2:1), +0x10..0x14 PF key funcs, +0x15/+0x16 VF/MR A/B (1 = VFO), +0x2C main side (0 A, 1 B), +0x2D sub channel (dual watch) on
 200003DC cur_chan_rec           ptr    # channel record the menus edit
 200003E4 rf_chan_rec            ptr    # channel record the RF code uses (+8 &3 type, +0x39 freq corr)
 200003C0 rx_freq_10hz           u32
@@ -106,3 +106,12 @@
 2000D9AB usb_dev_state          u8     # 3 = configured (usb_pc_link_step only runs then)
 20000CB5 powersave_active       u8     # set while powersave_sleep runs
 20000CB6 powersave_hold         u16    # countdown that keeps the radio awake (PC traffic sets 500)
+200049B8 chan_rec_a             u8[128] # side A channel/VFO record (codeplug channel format; VFO A = channel 4000 @ NAND 0xFC0800, 2nd half @ +0x2000): +0 RX BCD 10 Hz, +4 TX offset BCD, +8 sign/bw/power/type
+20004A38 chan_rec_b             u8[128] # side B record (VFO B = channel 4001 @ NAND 0xFC0840)
+200003E0 other_chan_rec         ptr    # record of the non-main side (cur_chan_rec = main side)
+200003C4 rx_freq_a              u32    # side A RX, 10 Hz units (sides_reload_freqs)
+200003C8 rx_freq_b              u32    # side B RX, 10 Hz units
+200003B8 tx_freq_a              u32    # side A TX, 10 Hz units
+200003BC tx_freq_b              u32    # side B TX, 10 Hz units
+20000CB8 rf_side                u8     # side the RF is on now (0 A, 1 B); rx/tx_freq_10hz follow it
+200065E4 freq_entry_digits      u8[10] # keypad frequency entry string (vfo_freq_digit_entry)
