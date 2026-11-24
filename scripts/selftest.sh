@@ -37,6 +37,7 @@ echo "offline tools"
 check "raminit: chanset option table -> Band width desc" sh -c \
 	"'$PY' '$ROOT/tools/raminit.py' 200006f0 1 2>/dev/null | grep -q '200006f0 \[ 0\] 080a9680'"
 check "radio.py --help" "$PY" "$ROOT/tools/radio.py" --help
+check "txaudio.py --help" "$PY" "$ROOT/tools/txaudio.py" --help
 check "afsk1200 reference decoder selftest" "$PY" -I "$ROOT/tools/afsk1200.py" --selftest
 
 echo "harness API (scripts/ghidractl start)"

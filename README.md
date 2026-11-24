@@ -39,7 +39,7 @@ DMR/analog handhelds, from Linux:
 
 Written knowledge lives in `docs/`: the RAM debug channel (`debug_channel.md`), the PC/USB
 protocol (`pc_link.md`), the menu/UI engine (`ui.md`), the band-unlock patch (`patch.md`), mods
-(`mods.md`), APRS (`aprs.md`). `OVERVIEW.md` is a dense map of the whole
+(`mods.md`), APRS (`aprs.md`), transmit audio over USB (`tx_audio.md`). `OVERVIEW.md` is a dense map of the whole
 firmware (hardware, tasks, RF, DMR chip protocol), written for AI coding agents but useful to humans.
 
 > **The firmware is not included.** It's AnyTone's copyright. Everyone uses their own copy of the
@@ -81,6 +81,7 @@ tools/trace.py aprs_rx_frame_byte  # callers, callees, globals touched, decompil
 tools/xrefs.py -w screen_id        # who writes a global (names or addresses)
 tools/glob.py 20000F4A aprs_rx_frame_ready u8 "comment"   # name a global, live + globals.txt
 tools/ramref.py 0x20000951         # who touches screen_id (-r N: also as a struct field)
+tools/txaudio.py --tts "N0CALL test" --yes   # transmit audio through the USB link (docs/tx_audio.md)
 tools/callsweep.py 0x0807A6FC      # every AT1846S register write with its constant args
 echo "0807bb12 adc_dma_init" | tools/ren.py   # rename, then:
 tools/names_snapshot.py            # record names in annotations/names.txt
