@@ -43,6 +43,10 @@ library code at 0x080078EC):
 
 A request is still one USB packet, so a single poke carries at most 56 bytes.
 
+Measured on a D878UV (v1 → v2): round trip 10 ms → 0.55 ms; reads (240-byte peeks) 23 → 234 KB/s;
+writes (56-byte pokes) 4.7 → ~100 KB/s; 30 s of continuous write+verify without an error, radio
+running normally (dual watch, APRS RX mod).
+
 ## Build and flash
 
 ```sh
