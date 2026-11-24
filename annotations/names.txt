@@ -773,6 +773,7 @@
 080974d8 OSTimeDly
 0809753c OSTimeDlyHMSM
 08097592 OSTimeDlyResume
+0809839e usb_cdc_out_done_cb
 080983e6 usb_cdc_tx
 08098404 usb_cdc_rx_arm
 0809c680 __aeabi_llsl
